@@ -1,5 +1,9 @@
 # HA-xAI-Custom-TTS
 
+<p align="center">
+  <img src="images/logo.png" alt="xAI Logo" width="120">
+</p>
+
 [![hacs_badge](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://github.com/custom-components/hacs)
 [![GitHub release](https://img.shields.io/github/release/luxus/HA-xAI-Custom-TTS.svg)](https://github.com/luxus/HA-xAI-Custom-TTS/releases/)
 

@@ -18,6 +18,8 @@ This custom component provides:
 - 📞 **Telephony Ready** – Native G.711 codec support for SIP/PBX integration
 - 🚀 **Enterprise Ready** – SOC 2 Type II, HIPAA eligible, GDPR compliant
 
+> **🙏 Credits**: This integration is based on the excellent work of [@loryanstrant](https://github.com/loryanstrant) and the [HA-ElevenLabs-Custom-TTS](https://github.com/loryanstrant/HA-ElevenLabs-Custom-TTS) project. The voice profile management system and architecture were adapted from that original integration.
+
 ---
 
 ## ✨ Features

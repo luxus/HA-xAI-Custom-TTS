@@ -44,15 +44,20 @@ _LOGGER = logging.getLogger(__name__)
 
 def _map_form_data_to_profile(user_input: dict[str, Any]) -> dict[str, Any]:
     """Map form data with friendly keys back to profile data with standard keys."""
-    # Ensure numeric fields are integers
-    sample_rate = user_input.get(SAMPLE_RATE_KEY, DEFAULT_SAMPLE_RATE)
-    bit_rate = user_input.get(BIT_RATE_KEY, DEFAULT_BIT_RATE)
+    # Get values (they come as strings from the form)
+    sample_rate = user_input.get(SAMPLE_RATE_KEY, str(DEFAULT_SAMPLE_RATE))
+    bit_rate = user_input.get(BIT_RATE_KEY, str(DEFAULT_BIT_RATE))
     
-    # Convert to int (vol.In with int keys should give us ints, but be safe)
-    if not isinstance(sample_rate, int):
+    # Convert string to int for storage
+    try:
         sample_rate = int(sample_rate)
-    if not isinstance(bit_rate, int):
+    except (ValueError, TypeError):
+        sample_rate = DEFAULT_SAMPLE_RATE
+        
+    try:
         bit_rate = int(bit_rate)
+    except (ValueError, TypeError):
+        bit_rate = DEFAULT_BIT_RATE
     
     return {
         "voice": user_input.get(VOICE_ID_KEY, DEFAULT_VOICE),
@@ -65,20 +70,21 @@ def _map_form_data_to_profile(user_input: dict[str, Any]) -> dict[str, Any]:
 
 def _map_profile_to_form_data(profile_name: str, profile_data: dict[str, Any]) -> dict[str, Any]:
     """Map profile data with standard keys to form data with friendly keys."""
-    # Ensure numeric fields are integers (config entries may store them as floats or strings)
+    # Ensure numeric fields are strings for form defaults (frontend uses string keys)
     sample_rate = profile_data.get("sample_rate", DEFAULT_SAMPLE_RATE)
     bit_rate = profile_data.get("bit_rate", DEFAULT_BIT_RATE)
     
-    # Convert to int if needed
-    if isinstance(sample_rate, float):
-        sample_rate = int(sample_rate)
+    # Convert to string for form default
+    if isinstance(sample_rate, (int, float)):
+        sample_rate = str(int(sample_rate))
     elif isinstance(sample_rate, str):
-        sample_rate = int(sample_rate)
+        # Already a string, make sure it's clean
+        sample_rate = str(int(sample_rate))
         
-    if isinstance(bit_rate, float):
-        bit_rate = int(bit_rate)
+    if isinstance(bit_rate, (int, float)):
+        bit_rate = str(int(bit_rate))
     elif isinstance(bit_rate, str):
-        bit_rate = int(bit_rate)
+        bit_rate = str(int(bit_rate))
     
     return {
         PROFILE_NAME_KEY: profile_name,
@@ -290,27 +296,21 @@ class XAIOptionsFlow(OptionsFlow):
                 vol.Required(VOICE_ID_KEY, default=DEFAULT_VOICE): vol.In(voice_options),
                 vol.Optional(LANGUAGE_KEY, default=DEFAULT_LANGUAGE): vol.In(language_options),
                 vol.Optional(CODEC_KEY, default=DEFAULT_CODEC): vol.In(codec_options),
-                vol.Optional(SAMPLE_RATE_KEY, default=DEFAULT_SAMPLE_RATE): vol.All(
-                    vol.Coerce(int),
-                    vol.In({
-                        8000: "8000 Hz (Telephone quality)",
-                        16000: "16000 Hz (Wideband)",
-                        22050: "22050 Hz (Radio quality)",
-                        24000: "24000 Hz (xAI default)",
-                        44100: "44100 Hz (CD quality)",
-                        48000: "48000 Hz (Professional)",
-                    }),
-                ),
-                vol.Optional(BIT_RATE_KEY, default=DEFAULT_BIT_RATE): vol.All(
-                    vol.Coerce(int),
-                    vol.In({
-                        32000: "32 kbps",
-                        64000: "64 kbps",
-                        96000: "96 kbps",
-                        128000: "128 kbps (Default)",
-                        192000: "192 kbps",
-                    }),
-                ),
+                vol.Optional(SAMPLE_RATE_KEY, default=str(DEFAULT_SAMPLE_RATE)): vol.In({
+                    "8000": "8000 Hz (Telephone quality)",
+                    "16000": "16000 Hz (Wideband)",
+                    "22050": "22050 Hz (Radio quality)",
+                    "24000": "24000 Hz (xAI default)",
+                    "44100": "44100 Hz (CD quality)",
+                    "48000": "48000 Hz (Professional)",
+                }),
+                vol.Optional(BIT_RATE_KEY, default=str(DEFAULT_BIT_RATE)): vol.In({
+                    "32000": "32 kbps",
+                    "64000": "64 kbps",
+                    "96000": "96 kbps",
+                    "128000": "128 kbps (Default)",
+                    "192000": "192 kbps",
+                }),
             }),
             errors=errors,
         )
@@ -347,27 +347,21 @@ class XAIOptionsFlow(OptionsFlow):
                         vol.Required(VOICE_ID_KEY, default=form_data[VOICE_ID_KEY]): vol.In(voice_options),
                         vol.Optional(LANGUAGE_KEY, default=form_data[LANGUAGE_KEY]): vol.In(language_options),
                         vol.Optional(CODEC_KEY, default=form_data[CODEC_KEY]): vol.In(codec_options),
-                        vol.Optional(SAMPLE_RATE_KEY, default=form_data[SAMPLE_RATE_KEY]): vol.All(
-                            vol.Coerce(int),
-                            vol.In({
-                                8000: "8000 Hz (Telephone quality)",
-                                16000: "16000 Hz (Wideband)",
-                                22050: "22050 Hz (Radio quality)",
-                                24000: "24000 Hz (xAI default)",
-                                44100: "44100 Hz (CD quality)",
-                                48000: "48000 Hz (Professional)",
-                            }),
-                        ),
-                        vol.Optional(BIT_RATE_KEY, default=form_data[BIT_RATE_KEY]): vol.All(
-                            vol.Coerce(int),
-                            vol.In({
-                                32000: "32 kbps",
-                                64000: "64 kbps",
-                                96000: "96 kbps",
-                                128000: "128 kbps (Default)",
-                                192000: "192 kbps",
-                            }),
-                        ),
+                vol.Optional(SAMPLE_RATE_KEY, default=str(form_data[SAMPLE_RATE_KEY])): vol.In({
+                    "8000": "8000 Hz (Telephone quality)",
+                    "16000": "16000 Hz (Wideband)",
+                    "22050": "22050 Hz (Radio quality)",
+                    "24000": "24000 Hz (xAI default)",
+                    "44100": "44100 Hz (CD quality)",
+                    "48000": "48000 Hz (Professional)",
+                }),
+                vol.Optional(BIT_RATE_KEY, default=str(form_data[BIT_RATE_KEY])): vol.In({
+                    "32000": "32 kbps",
+                    "64000": "64 kbps",
+                    "96000": "96 kbps",
+                    "128000": "128 kbps (Default)",
+                    "192000": "192 kbps",
+                }),
                     })
                 )
         

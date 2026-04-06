@@ -77,16 +77,11 @@ class XAITTSProvider(TextToSpeechEntity):
         self._api_key = api_key
         self._config_entry = config_entry
         self._httpx_client = get_async_client(hass)
-        # Set the entity name for entity ID generation
-        self._name = "xai_custom_tts"
-        # Set the friendly name that should appear in UI and registry
-        self._attr_name = "xAI Custom TTS"
-        self._friendly_name = "xAI Custom TTS"
 
     @property
     def name(self) -> str:
-        """Return the name of the entity (for entity ID)."""
-        return self._name
+        """Return the name of the entity (display name in UI)."""
+        return "xAI Custom TTS"
 
     @property
     def unique_id(self) -> str:

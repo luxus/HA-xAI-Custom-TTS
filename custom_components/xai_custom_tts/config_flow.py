@@ -290,21 +290,27 @@ class XAIOptionsFlow(OptionsFlow):
                 vol.Required(VOICE_ID_KEY, default=DEFAULT_VOICE): vol.In(voice_options),
                 vol.Optional(LANGUAGE_KEY, default=DEFAULT_LANGUAGE): vol.In(language_options),
                 vol.Optional(CODEC_KEY, default=DEFAULT_CODEC): vol.In(codec_options),
-                vol.Optional(SAMPLE_RATE_KEY, default=DEFAULT_SAMPLE_RATE): vol.In({
-                    8000: "8000 Hz (Telephone quality)",
-                    16000: "16000 Hz (Wideband)",
-                    22050: "22050 Hz (Radio quality)",
-                    24000: "24000 Hz (xAI default)",
-                    44100: "44100 Hz (CD quality)",
-                    48000: "48000 Hz (Professional)",
-                }),
-                vol.Optional(BIT_RATE_KEY, default=DEFAULT_BIT_RATE): vol.In({
-                    32000: "32 kbps",
-                    64000: "64 kbps",
-                    96000: "96 kbps",
-                    128000: "128 kbps (Default)",
-                    192000: "192 kbps",
-                }),
+                vol.Optional(SAMPLE_RATE_KEY, default=DEFAULT_SAMPLE_RATE): vol.All(
+                    vol.Coerce(int),
+                    vol.In({
+                        8000: "8000 Hz (Telephone quality)",
+                        16000: "16000 Hz (Wideband)",
+                        22050: "22050 Hz (Radio quality)",
+                        24000: "24000 Hz (xAI default)",
+                        44100: "44100 Hz (CD quality)",
+                        48000: "48000 Hz (Professional)",
+                    }),
+                ),
+                vol.Optional(BIT_RATE_KEY, default=DEFAULT_BIT_RATE): vol.All(
+                    vol.Coerce(int),
+                    vol.In({
+                        32000: "32 kbps",
+                        64000: "64 kbps",
+                        96000: "96 kbps",
+                        128000: "128 kbps (Default)",
+                        192000: "192 kbps",
+                    }),
+                ),
             }),
             errors=errors,
         )
@@ -341,21 +347,27 @@ class XAIOptionsFlow(OptionsFlow):
                         vol.Required(VOICE_ID_KEY, default=form_data[VOICE_ID_KEY]): vol.In(voice_options),
                         vol.Optional(LANGUAGE_KEY, default=form_data[LANGUAGE_KEY]): vol.In(language_options),
                         vol.Optional(CODEC_KEY, default=form_data[CODEC_KEY]): vol.In(codec_options),
-                        vol.Optional(SAMPLE_RATE_KEY, default=form_data[SAMPLE_RATE_KEY]): vol.In({
-                            8000: "8000 Hz (Telephone quality)",
-                            16000: "16000 Hz (Wideband)",
-                            22050: "22050 Hz (Radio quality)",
-                            24000: "24000 Hz (xAI default)",
-                            44100: "44100 Hz (CD quality)",
-                            48000: "48000 Hz (Professional)",
-                        }),
-                        vol.Optional(BIT_RATE_KEY, default=form_data[BIT_RATE_KEY]): vol.In({
-                            32000: "32 kbps",
-                            64000: "64 kbps",
-                            96000: "96 kbps",
-                            128000: "128 kbps (Default)",
-                            192000: "192 kbps",
-                        }),
+                        vol.Optional(SAMPLE_RATE_KEY, default=form_data[SAMPLE_RATE_KEY]): vol.All(
+                            vol.Coerce(int),
+                            vol.In({
+                                8000: "8000 Hz (Telephone quality)",
+                                16000: "16000 Hz (Wideband)",
+                                22050: "22050 Hz (Radio quality)",
+                                24000: "24000 Hz (xAI default)",
+                                44100: "44100 Hz (CD quality)",
+                                48000: "48000 Hz (Professional)",
+                            }),
+                        ),
+                        vol.Optional(BIT_RATE_KEY, default=form_data[BIT_RATE_KEY]): vol.All(
+                            vol.Coerce(int),
+                            vol.In({
+                                32000: "32 kbps",
+                                64000: "64 kbps",
+                                96000: "96 kbps",
+                                128000: "128 kbps (Default)",
+                                192000: "192 kbps",
+                            }),
+                        ),
                     })
                 )
         

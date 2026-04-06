@@ -346,6 +346,63 @@ When using Home Assistant's native TTS services, you can pass these options:
 
 ---
 
+## 🎭 AI Prompting with Speech Tags
+
+When using xAI Custom TTS with AI-generated messages (via the [AI Contextual TTS Announcer blueprint](https://github.com/luxus/home-assistant-goodies) or custom automations), you can use **expressive speech tags** for more natural delivery.
+
+### Inline Tags
+Place these where the expression should occur:
+- `[pause]`, `[long-pause]` - Dramatic pauses
+- `[laugh]`, `[chuckle]`, `[giggle]` - Laughter
+- `[cry]`, `[tsk]`, `[tongue-click]`, `[lip-smack]` - Vocal expressions
+- `[breath]`, `[inhale]`, `[exhale]`, `[sigh]` - Breathing sounds
+- `[hum-tune]` - Humming
+
+### Wrapping Tags
+Wrap text sections to change delivery style:
+- `<soft>text</soft>` - Softer volume
+- `<whisper>text</whisper>` - Whispered speech
+- `<loud>text</loud>` - Louder speech
+- `<build-intensity>text</build-intensity>` - Increasing intensity
+- `<decrease-intensity>text</decrease-intensity>` - Decreasing intensity
+- `<higher-pitch>text</higher-pitch>` - Higher pitch
+- `<lower-pitch>text</lower-pitch>` - Lower pitch
+- `<slow>text</slow>` - Slower speed
+- `<fast>text</fast>` - Faster speed
+- `<sing-song>text</sing-song>` - Sing-song style
+- `<singing>text</singing>` - Full singing
+- `<laugh-speak>text</laugh-speak>` - Laughing while speaking
+- `<emphasis>text</emphasis>` - Emphasized words
+
+### Example with Speech Tags
+```yaml
+service: tts.speak
+data:
+  entity_id: tts.xai_custom_tts
+  message: "So I walked in and [pause] there it was. [laugh] I honestly could not believe it! <whisper>It was a secret the whole time.</whisper>"
+  media_player_entity_id: media_player.living_room_speaker
+```
+
+### AI Prompt Template
+Add this to your AI prompts to ensure the AI knows to use speech tags:
+
+```
+You are generating text for xAI Text-to-Speech (TTS) API.
+The TTS supports expressive speech tags for natural delivery:
+
+Inline tags: [pause], [long-pause], [laugh], [chuckle], [giggle], [cry], [tsk], 
+[tongue-click], [lip-smack], [breath], [inhale], [exhale], [sigh], [hum-tune]
+
+Wrapping tags: <soft>, <whisper>, <loud>, <build-intensity>, <decrease-intensity>,
+<higher-pitch>, <lower-pitch>, <slow>, <fast>, <sing-song>, <singing>, 
+<laugh-speak>, <emphasis>
+
+Respond ONLY with the raw spoken text including any speech tags.
+No markdown, no quotes, no formatting, no explanations.
+```
+
+---
+
 ## 🚨 Troubleshooting
 
 ### Entity ID Not Found

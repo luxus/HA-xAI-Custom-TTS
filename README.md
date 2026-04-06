@@ -1,7 +1,7 @@
 # HA-xAI-Custom-TTS
 
 [![hacs_badge](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://github.com/custom-components/hacs)
-[![GitHub release](https://img.shields.io/github/release/loryanstrant/HA-xAI-Custom-TTS.svg)](https://github.com/loryanstrant/HA-xAI-Custom-TTS/releases/)
+[![GitHub release](https://img.shields.io/github/release/luxus/HA-xAI-Custom-TTS.svg)](https://github.com/luxus/HA-xAI-Custom-TTS/releases/)
 
 A xAI (Grok) TTS integration for Home Assistant that provides voice synthesis using xAI's Text-to-Speech API and integrates with Home Assistant's native TTS platform.
 
@@ -58,7 +58,7 @@ This custom component provides:
 1. Open HACS in your Home Assistant instance
 2. Go to "Integrations"
 3. Click the three dots menu and select "Custom repositories"
-4. Add `https://github.com/loryanstrant/HA-xAI-Custom-TTS` as repository
+4. Add `https://github.com/luxus/HA-xAI-Custom-TTS` as repository
 5. Set category to "Integration"
 6. Click "Add"
 7. Find "xAI Custom TTS" in the integration list and install it
@@ -69,7 +69,7 @@ This custom component provides:
 
 Or replace steps 1-6 with this:
 
-[![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=loryanstrant&repository=HA-xAI-Custom-TTS&category=integration)
+[![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=luxus&repository=HA-xAI-Custom-TTS&category=integration)
 
 ### Manual Installation
 
@@ -415,7 +415,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## Support
 
-If you encounter any issues, please report them on the [GitHub Issues page](https://github.com/loryanstrant/HA-xAI-Custom-TTS/issues).
+If you encounter any issues, please report them on the [GitHub Issues page](https://github.com/luxus/HA-xAI-Custom-TTS/issues).
 
 ---
 

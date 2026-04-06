@@ -1,7 +1,7 @@
 # HA-xAI-Custom-TTS
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/luxus/HA-xAI-Custom-TTS/main/images/logo.png" alt="xAI Logo" width="120">
+  <img src="https://pbs.twimg.com/profile_images/1769430779845611520/lIgjSJGU_400x400.jpg" alt="xAI Logo" width="120">
 </p>
 
 [![hacs_badge](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://github.com/custom-components/hacs)

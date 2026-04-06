@@ -1,4 +1,4 @@
-"""ElevenLabs TTS platform."""
+"""xAI TTS platform."""
 
 from __future__ import annotations
 
@@ -7,57 +7,81 @@ import logging
 from typing import Any
 
 import async_timeout
-from elevenlabs import VoiceSettings
-from elevenlabs.core import ApiError
+import httpx
 
 from homeassistant.components.tts import TextToSpeechEntity, TtsAudioType, Voice
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.config_entries import ConfigEntry
+from homeassistant.helpers.httpx_client import get_async_client
 
 from .const import (
     DOMAIN,
-    DEFAULT_MODEL,
-    DEFAULT_STABILITY,
-    DEFAULT_SIMILARITY_BOOST,
-    DEFAULT_STYLE,
-    DEFAULT_SPEED,
-    DEFAULT_USE_SPEAKER_BOOST,
-    DEFAULT_APPLY_TEXT_NORMALIZATION,
+    XAI_TTS_URL,
+    XAI_VOICES,
+    DEFAULT_VOICE,
+    DEFAULT_LANGUAGE,
+    DEFAULT_CODEC,
+    DEFAULT_SAMPLE_RATE,
+    DEFAULT_BIT_RATE,
+    SUPPORT_LANGUAGES,
+    SUPPORT_CODECS,
+    SUPPORT_SAMPLE_RATES,
+    SUPPORT_BIT_RATES,
 )
 
 _LOGGER = logging.getLogger(__name__)
 
-SUPPORT_LANGUAGES = ["en", "es", "fr", "de", "it", "pt", "pl", "tr", "ru", "nl", "cs", "ar", "zh", "ja", "hu", "ko"]
+# Content type mapping for codecs
+CODEC_CONTENT_TYPES = {
+    "mp3": "audio/mpeg",
+    "wav": "audio/wav",
+    "pcm": "audio/pcm",
+    "mulaw": "audio/basic",
+    "alaw": "audio/basic",
+}
+
+# File extension mapping for codecs
+CODEC_EXTENSIONS = {
+    "mp3": "mp3",
+    "wav": "wav",
+    "pcm": "pcm",
+    "mulaw": "au",
+    "alaw": "au",
+}
+
 
 async def async_setup_entry(
     hass: HomeAssistant,
     config_entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    """Set up ElevenLabs TTS platform via config entry."""
-    # Get the client from the integration data
+    """Set up xAI TTS platform via config entry."""
+    # Get the API key from the integration data
     if DOMAIN not in hass.data or config_entry.entry_id not in hass.data[DOMAIN]:
-        _LOGGER.error("ElevenLabs integration not loaded")
+        _LOGGER.error("xAI integration not loaded")
         return
-        
-    client = hass.data[DOMAIN][config_entry.entry_id]
-    async_add_entities([ElevenLabsTTSProvider(hass, client, config_entry)])
+    
+    entry_data = hass.data[DOMAIN][config_entry.entry_id]
+    api_key = entry_data["api_key"]
+    
+    async_add_entities([XAITTSProvider(hass, api_key, config_entry)])
 
 
-class ElevenLabsTTSProvider(TextToSpeechEntity):
-    """ElevenLabs TTS provider."""
+class XAITTSProvider(TextToSpeechEntity):
+    """xAI TTS provider."""
 
-    def __init__(self, hass: HomeAssistant, client, config_entry: ConfigEntry) -> None:
-        """Initialize ElevenLabs TTS provider."""
+    def __init__(self, hass: HomeAssistant, api_key: str, config_entry: ConfigEntry) -> None:
+        """Initialize xAI TTS provider."""
         self.hass = hass
-        self._client = client
+        self._api_key = api_key
         self._config_entry = config_entry
+        self._httpx_client = get_async_client(hass)
         # Set the entity name for entity ID generation
-        self._name = "elevenlabs_custom_tts"
+        self._name = "xai_custom_tts"
         # Set the friendly name that should appear in UI and registry
-        self._attr_name = "ElevenLabs Custom TTS"
-        self._friendly_name = "ElevenLabs Custom TTS"
+        self._attr_name = "xAI Custom TTS"
+        self._friendly_name = "xAI Custom TTS"
 
     @property
     def name(self) -> str:
@@ -72,7 +96,7 @@ class ElevenLabsTTSProvider(TextToSpeechEntity):
     @property
     def default_language(self) -> str:
         """Return the default language."""
-        return "en"
+        return DEFAULT_LANGUAGE
 
     @property
     def supported_languages(self) -> list[str]:
@@ -85,27 +109,21 @@ class ElevenLabsTTSProvider(TextToSpeechEntity):
         return [
             "voice_profile",
             "voice",
-            "model_id", 
-            "stability",
-            "similarity_boost",
-            "style",
-            "speed",
-            "use_speaker_boost",
-            "apply_text_normalization"
+            "language",
+            "codec",
+            "sample_rate",
+            "bit_rate",
         ]
 
     @property
     def default_options(self) -> dict[str, Any]:
         """Return dict of default options."""
         return {
-            "voice": "21m00Tcm4TlvDq8ikWAM",  # Default Rachel voice
-            "model_id": DEFAULT_MODEL,
-            "stability": DEFAULT_STABILITY,
-            "similarity_boost": DEFAULT_SIMILARITY_BOOST,
-            "style": DEFAULT_STYLE,
-            "speed": DEFAULT_SPEED,
-            "use_speaker_boost": DEFAULT_USE_SPEAKER_BOOST,
-            "apply_text_normalization": DEFAULT_APPLY_TEXT_NORMALIZATION,
+            "voice": DEFAULT_VOICE,
+            "language": DEFAULT_LANGUAGE,
+            "codec": DEFAULT_CODEC,
+            "sample_rate": DEFAULT_SAMPLE_RATE,
+            "bit_rate": DEFAULT_BIT_RATE,
         }
 
     @callback
@@ -121,7 +139,7 @@ class ElevenLabsTTSProvider(TextToSpeechEntity):
         
         # Add each configured voice profile as a selectable voice
         for profile_name, profile_data in voice_profiles.items():
-            voice_id = profile_data.get("voice", "")
+            voice_id = profile_data.get("voice", DEFAULT_VOICE)
             
             # Create a Voice object for this profile
             # The voice_id in Voice() becomes the identifier used in the Assist pipeline
@@ -132,7 +150,7 @@ class ElevenLabsTTSProvider(TextToSpeechEntity):
                     name=profile_name,  # Display name in UI
                 )
             )
-            _LOGGER.debug("Added voice profile '%s' (ElevenLabs voice: %s) to supported voices", 
+            _LOGGER.debug("Added voice profile '%s' (xAI voice: %s) to supported voices", 
                          profile_name, voice_id)
         
         # If no profiles configured, return empty list to use default
@@ -144,7 +162,7 @@ class ElevenLabsTTSProvider(TextToSpeechEntity):
     async def async_get_tts_audio(
         self, message: str, language: str, options: dict[str, Any] | None = None
     ) -> TtsAudioType:
-        """Load TTS audio file from ElevenLabs."""
+        """Load TTS audio file from xAI."""
         _LOGGER.debug("TTS request received for message length: %d", len(message))
         _LOGGER.debug("Language: %s", language) 
         _LOGGER.debug("Options: %s", options)
@@ -184,61 +202,92 @@ class ElevenLabsTTSProvider(TextToSpeechEntity):
             merged_options = {**self.default_options, **options}
             _LOGGER.debug("No voice profile specified, using merged options")
         
-        voice_id = merged_options["voice"]
-        model_id = merged_options["model_id"]
-        stability = merged_options["stability"]
-        similarity_boost = merged_options["similarity_boost"]
-        style = merged_options["style"]
-        speed = merged_options["speed"]
-        use_speaker_boost = merged_options["use_speaker_boost"]
-        apply_text_normalization = merged_options["apply_text_normalization"]
+        voice_id = merged_options.get("voice", DEFAULT_VOICE)
+        lang = merged_options.get("language", language)
+        codec = merged_options.get("codec", DEFAULT_CODEC)
+        sample_rate = merged_options.get("sample_rate", DEFAULT_SAMPLE_RATE)
+        bit_rate = merged_options.get("bit_rate", DEFAULT_BIT_RATE)
         
-        voice_settings = VoiceSettings(
-            stability=stability,
-            similarity_boost=similarity_boost,
-            style=style,
-            use_speaker_boost=use_speaker_boost,
-            speed=speed,
-        )
+        # Validate voice_id
+        if voice_id not in XAI_VOICES:
+            _LOGGER.warning("Invalid voice_id '%s', using default '%s'", voice_id, DEFAULT_VOICE)
+            voice_id = DEFAULT_VOICE
+        
+        # Validate codec
+        if codec not in SUPPORT_CODECS:
+            _LOGGER.warning("Invalid codec '%s', using default '%s'", codec, DEFAULT_CODEC)
+            codec = DEFAULT_CODEC
+        
+        # Validate sample rate
+        if sample_rate not in SUPPORT_SAMPLE_RATES:
+            _LOGGER.warning("Invalid sample_rate '%s', using default '%s'", sample_rate, DEFAULT_SAMPLE_RATE)
+            sample_rate = DEFAULT_SAMPLE_RATE
+        
+        # Validate bit rate (MP3 only)
+        if codec == "mp3" and bit_rate not in SUPPORT_BIT_RATES:
+            _LOGGER.warning("Invalid bit_rate '%s', using default '%s'", bit_rate, DEFAULT_BIT_RATE)
+            bit_rate = DEFAULT_BIT_RATE
         
         try:
             with async_timeout.timeout(30):
-                # Prepare conversion parameters
-                convert_params = {
-                    "text": message,
-                    "voice_id": voice_id,
-                    "model_id": model_id,
-                    "voice_settings": voice_settings,
-                    "language_code": language,
-                    "apply_text_normalization": apply_text_normalization,
+                # Prepare request
+                headers = {
+                    "Authorization": f"Bearer {self._api_key}",
+                    "Content-Type": "application/json",
                 }
                 
-                # Generate audio with ElevenLabs (async generator)
-                audio_generator = self._client.text_to_speech.convert(**convert_params)
+                payload = {
+                    "text": message,
+                    "voice_id": voice_id,
+                    "language": lang,
+                    "output_format": {
+                        "codec": codec,
+                        "sample_rate": sample_rate,
+                    },
+                }
                 
-                # Collect all audio bytes from async generator
-                audio_bytes = b""
-                async for chunk in audio_generator:
-                    audio_bytes += chunk
+                # Add bit_rate for MP3 codec
+                if codec == "mp3":
+                    payload["output_format"]["bit_rate"] = bit_rate
+                
+                _LOGGER.debug("Sending TTS request to xAI: voice=%s, language=%s, codec=%s, sample_rate=%s", 
+                             voice_id, lang, codec, sample_rate)
+                
+                # Make the API request
+                response = await self._httpx_client.post(
+                    XAI_TTS_URL,
+                    headers=headers,
+                    json=payload,
+                    timeout=30.0,
+                )
+                
+                response.raise_for_status()
+                
+                audio_bytes = response.content
                 
                 if not audio_bytes:
-                    _LOGGER.error("No audio data received from ElevenLabs")
+                    _LOGGER.error("No audio data received from xAI")
                     return None
-                    
+                
                 _LOGGER.info(
-                    "Successfully generated %d bytes of audio for voice %s%s",
+                    "Successfully generated %d bytes of audio for voice %s (codec: %s)%s",
                     len(audio_bytes),
                     voice_id,
+                    codec,
                     f" using profile '{voice_profile_name}'" if voice_profile_name else ""
                 )
                 
-                return ("mp3", audio_bytes)
+                # Return with appropriate extension
+                return (CODEC_EXTENSIONS.get(codec, "mp3"), audio_bytes)
                 
         except asyncio.TimeoutError:
             _LOGGER.error("Timeout generating TTS audio")
             return None
-        except ApiError as err:
-            _LOGGER.error("ElevenLabs API error: %s", err)
+        except httpx.HTTPStatusError as err:
+            _LOGGER.error("xAI API error: %s - %s", err.response.status_code, err.response.text)
+            return None
+        except httpx.RequestError as err:
+            _LOGGER.error("Error connecting to xAI API: %s", err)
             return None
         except Exception as err:
             _LOGGER.error("Error generating TTS audio: %s", err)

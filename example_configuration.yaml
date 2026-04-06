@@ -1,137 +1,123 @@
-# Example Home Assistant configuration using ElevenLabs Custom TTS
+# Example Configuration for xAI Custom TTS
+
+# Add to your configuration.yaml or use the UI:
+# Settings → Devices & Services → Add Integration → xAI Custom TTS
+
+# After setup, you can use the TTS service in automations:
 
 automation:
-  - alias: "Test ElevenLabs Voice Discovery"
+  - alias: "Morning Announcement with xAI"
     trigger:
-      - platform: state
-        entity_id: input_button.test_voices
+      - platform: time
+        at: "07:00:00"
     action:
-      # Get all available voices
-      - service: elevenlabs_custom_tts.get_voices
-        response_variable: voices_data
-      
-      # Log the available voices (optional)
-      - service: system_log.write
-        data:
-          message: "Available voices: {{ voices_data.voices | length }}"
-          level: info
-
-  - alias: "Test ElevenLabs TTS with Native Integration"
-    trigger:
-      - platform: state
-        entity_id: input_button.test_tts
-    action:
-      # First, get all available voices
-      - service: elevenlabs_custom_tts.get_voices
-        response_variable: voices_data
-      
-      # Use native TTS service for media player output
       - service: tts.speak
         data:
-          entity_id: tts.elevenlabs  # May vary based on your setup
-          message: "Hello from Home Assistant! This is a test of the ElevenLabs Custom TTS integration."
+          entity_id: tts.xai_custom_tts
+          message: "Good morning! Today is {{ now().strftime('%A, %B %d') }}."
+          media_player_entity_id: media_player.bedroom_speaker
+          options:
+            voice: "ara"  # Warm, friendly female voice
+            language: "en"
+            codec: "mp3"
+            sample_rate: 24000
+
+  - alias: "Security Alert"
+    trigger:
+      - platform: state
+        entity_id: binary_sensor.front_door
+        to: "on"
+    action:
+      - service: tts.speak
+        data:
+          entity_id: tts.xai_custom_tts
+          message: "Security alert: Front door has been opened."
           media_player_entity_id: media_player.living_room_speaker
           options:
-            voice: "{{ voices_data.voices[0].voice_id if voices_data.voices else '21m00Tcm4TlvDq8ikWAM' }}"
-            model_id: "eleven_multilingual_v2"
-            stability: 0.7
-            similarity_boost: 0.8
-            style: 0.2
-            use_speaker_boost: true
+            voice: "leo"  # Authoritative male voice
+            language: "en"
 
-  - alias: "Smart Voice Selection Example"
+  - alias: "Telephony Announcement"
     trigger:
-      - platform: event
-        event_type: custom_tts_request
+      - platform: state
+        entity_id: input_boolean.pbx_announcement
+        to: "on"
     action:
-      # Find voices matching criteria
-      - service: elevenlabs_custom_tts.get_voices
-        data:
-          voice_type: "{{ trigger.event.data.voice_type | default('premade') }}"
-          search_text: "{{ trigger.event.data.search_text | default('') }}"
-        response_variable: filtered_voices
-      
-      # Use the first matching voice or fallback
       - service: tts.speak
         data:
-          entity_id: tts.elevenlabs
-          message: "{{ trigger.event.data.message }}"
-          media_player_entity_id: "{{ trigger.event.data.media_player | default('media_player.living_room_speaker') }}"
+          entity_id: tts.xai_custom_tts
+          message: "You have reached the after-hours line."
+          media_player_entity_id: media_player.pbx_gateway
           options:
-            voice: "{{ filtered_voices.voices[0].voice_id if filtered_voices.voices else '21m00Tcm4TlvDq8ikWAM' }}"
-            stability: "{{ trigger.event.data.stability | default(0.5) }}"
-            similarity_boost: "{{ trigger.event.data.similarity_boost | default(0.75) }}"
-            style: "{{ trigger.event.data.style | default(0.0) }}"
-            use_speaker_boost: "{{ trigger.event.data.use_speaker_boost | default(true) }}"
+            voice: "sal"  # Neutral voice
+            codec: "mulaw"  # G.711 μ-law for telephony
+            sample_rate: 8000  # Standard telephony rate
 
-# Example script to demonstrate usage
+  - alias: "Spanish Announcement"
+    trigger:
+      - platform: time
+        at: "12:00:00"
+    action:
+      - service: tts.speak
+        data:
+          entity_id: tts.xai_custom_tts
+          message: "Buenas tardes. Es la hora del almuerzo."
+          media_player_entity_id: media_player.kitchen_speaker
+          options:
+            voice: "eve"
+            language: "es-MX"  # Spanish (Mexico)
+
+  - alias: "High Quality Audio"
+    trigger:
+      - platform: state
+        entity_id: input_boolean.announce_important
+        to: "on"
+    action:
+      - service: tts.speak
+        data:
+          entity_id: tts.xai_custom_tts
+          message: "Important announcement with high quality audio."
+          media_player_entity_id: media_player.hifi_system
+          options:
+            voice: "rex"
+            codec: "wav"  # Uncompressed audio
+            sample_rate: 44100  # CD quality
+
+# Get available voices
 script:
-  generate_morning_greeting:
-    alias: "Generate Morning Greeting"
+  get_xai_voices:
     sequence:
-      # Get preferred voices for morning announcements
-      - service: elevenlabs_custom_tts.get_voices
+      - service: xai_custom_tts.get_voices
         data:
-          voice_type: "premade"
-          search_text: "pleasant"
-        response_variable: morning_voices
-        
-      # Use TTS service to play directly to media player
-      - service: tts.speak
-        data:
-          entity_id: tts.elevenlabs
-          message: "Good morning! Today is {{ now().strftime('%A, %B %d, %Y') }}. Have a wonderful day!"
-          media_player_entity_id: media_player.living_room_speaker  # Replace with your media player
-          options:
-            voice: "{{ morning_voices.voices[0].voice_id if morning_voices.voices else '21m00Tcm4TlvDq8ikWAM' }}"
-            stability: 0.6
-            similarity_boost: 0.8
-            style: 0.1
-            use_speaker_boost: true
+          search_text: "female"
 
-  announce_to_all_rooms:
-    alias: "Announce to All Rooms"
-    sequence:
-      # Get authoritative voice for announcements
-      - service: elevenlabs_custom_tts.get_voices
-        data:
-          search_text: "authoritative"
-        response_variable: announcement_voices
-      
-      # Announce to living room
+# Using voice profiles (set up in the integration UI)
+automation:
+  - alias: "Bedtime Story"
+    trigger:
+      - platform: time
+        at: "20:00:00"
+    action:
       - service: tts.speak
         data:
-          entity_id: tts.elevenlabs
-          message: "{{ message | default('This is a test announcement') }}"
-          media_player_entity_id: media_player.living_room_speaker
+          entity_id: tts.xai_custom_tts
+          message: "Once upon a time..."
+          media_player_entity_id: media_player.kids_room_speaker
           options:
-            voice: "{{ announcement_voices.voices[0].voice_id if announcement_voices.voices else '21m00Tcm4TlvDq8ikWAM' }}"
-            stability: 0.8
-            style: 0.2
-      
-      # Announce to kitchen
-      - service: tts.speak
-        data:
-          entity_id: tts.elevenlabs
-          message: "{{ message | default('This is a test announcement') }}"
-          media_player_entity_id: media_player.kitchen_display
-          options:
-            voice: "{{ announcement_voices.voices[0].voice_id if announcement_voices.voices else '21m00Tcm4TlvDq8ikWAM' }}"
-            stability: 0.8
-            style: 0.2
+            voice_profile: "Storyteller"  # Use a saved profile
 
-# Example sensor to track voice information
-template:
-  - sensor:
-      - name: "ElevenLabs Voice Count"
-        unique_id: elevenlabs_voice_count
-        state: >-
-          {% set ns = namespace(count=0) %}
-          {% if states('sensor.elevenlabs_voices') != 'unavailable' %}
-            {% set voices = state_attr('sensor.elevenlabs_voices', 'voices') %}
-            {% if voices %}
-              {% set ns.count = voices | length %}
-            {% endif %}
-          {% endif %}
-          {{ ns.count }}
-        unit_of_measurement: "voices"
+# Auto-language detection
+automation:
+  - alias: "Multi-Language Greeting"
+    trigger:
+      - platform: state
+        entity_id: input_button.greet
+    action:
+      - service: tts.speak
+        data:
+          entity_id: tts.xai_custom_tts
+          message: "Welcome! Bienvenue! Willkommen!"
+          media_player_entity_id: media_player.entrance_speaker
+          options:
+            voice: "eve"
+            language: "auto"  # Auto-detect language from text

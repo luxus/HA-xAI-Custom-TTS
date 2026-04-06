@@ -1,44 +1,53 @@
-# HA-ElevenLabs-custom-TTS
+# HA-xAI-Custom-TTS
 
 [![hacs_badge](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://github.com/custom-components/hacs)
-[![GitHub release](https://img.shields.io/github/release/loryanstrant/HA-ElevenLabs-Custom-TTS.svg)](https://github.com/loryanstrant/HA-ElevenLabs-Custom-TTS/releases/)
+[![GitHub release](https://img.shields.io/github/release/loryanstrant/HA-xAI-Custom-TTS.svg)](https://github.com/loryanstrant/HA-xAI-Custom-TTS/releases/)
 
-An ElevenLabs TTS integration for Home Assistant that provides enhanced voice discovery and integrates with Home Assistant's native TTS platform.
+A xAI (Grok) TTS integration for Home Assistant that provides voice synthesis using xAI's Text-to-Speech API and integrates with Home Assistant's native TTS platform.
 
 This custom component provides:
-1. **Get Voices Service** - Retrieve and filter available voices from ElevenLabs API  
-2. **Native TTS Platform** - Full integration with Home Assistant's TTS system with custom voice parameters
-3. **Voice Profile Management** - Create, modify, and delete named voice profiles through the Home Assistant UI
+1. **Get Voices Service** - Retrieve available xAI voices (Eve, Ara, Rex, Sal, Leo)
+2. **Native TTS Platform** - Full integration with Home Assistant's TTS system
+3. **Voice Profile Management** - Create, modify, and delete named voice profiles with full audio format control
+4. **Flexible Output Formats** - MP3, WAV, PCM, and telephony codecs (G.711 μ-law/A-law) with configurable sample rates
 
-### Why use this instead of the native integration?
-- 🎙️ Complete voice control – Access all available voice parameters, including speed, which the native integration doesn’t support.
-- 🧠 Flexible voice profiles – Define multiple voice configurations and easily switch between them in automations, actions, and Assist pipelines. No need to create separate integration instances for each voice like the native setup requires.
+### Why use this instead of other TTS integrations?
+- 🎙️ **Simple & Clean** – xAI provides 5 high-quality voices without complex parameter tuning
+- 🌍 **21 Languages** – Natural pronunciation with auto-detection support
+- 🔧 **Voice Profiles** – Define multiple voice configurations with codec, sample rate, and bit rate settings
+- 📞 **Telephony Ready** – Native G.711 codec support for SIP/PBX integration
+- 🚀 **Enterprise Ready** – SOC 2 Type II, HIPAA eligible, GDPR compliant
 
+---
 
 ## ✨ Features
 
-> **📝 Note:** The default TTS entity ID is `tts.elevenlabs_custom_tts`. This is used in all the examples below.
+> **📝 Note:** The default TTS entity ID is `tts.xai_custom_tts`. This is used in all the examples below.
 
-### Enhanced Voice Discovery
-- **Voice Type Filtering**: Filter voices by category (premade, cloned, generated, professional)
-- **Voice Search**: Search voices by name, description, or labels (e.g., "british", "male", "authoritative")
-- **Smart Voice Selection**: Use filters in automations to dynamically select the perfect voice
+### Voice Discovery
+- **5 Distinct Voices**: Eve (energetic female), Ara (warm female), Rex (professional male), Sal (neutral), Leo (authoritative male)
+- **Voice Search**: Search voices by name, type, tone, or description
+- **Multi-Language Support**: 21 languages including auto-detection
+
+### Audio Format Options
+- **Codecs**: MP3, WAV, PCM, G.711 μ-law, G.711 A-law
+- **Sample Rates**: 8000, 16000, 22050, 24000 (default), 44100, 48000 Hz
+- **Bit Rates**: 32, 64, 96, 128 (default), 192 kbps (MP3 only)
+- **Telephony Integration**: Direct G.711 support for PBX/SIP systems without transcoding
 
 ### Native TTS Platform Integration
 - **Seamless Integration**: Works with Home Assistant's native TTS services (`tts.speak`, `tts.cloud_say`, etc.)
-- **Custom Voice Parameters**: Full control over stability, similarity_boost, style, speed, and speaker_boost
 - **Media Player Support**: Use with any Home Assistant media player through the TTS platform
-- **Multi-Language Support**: Supports multiple languages through ElevenLabs' multilingual models
+- **Multi-Language Support**: Supports 21+ languages
 
 ### Voice Profile Management
 - **Create Named Profiles**: Save your favorite voice configurations with custom names
+- **Full Format Control**: Set codec, sample rate, and bit rate per profile
 - **Easy Profile Management**: Add, modify, or delete voice profiles through the Home Assistant UI
 - **Quick Profile Selection**: Use saved profiles with the `voice_profile` option in TTS calls
 - **Profile Storage**: Profiles are stored in Home Assistant configuration and persist across restarts
 
-### Backward Compatibility
-- Works with existing Home Assistant TTS automations and scripts
-- Gradual migration path from other TTS providers
+---
 
 ## Installation
 
@@ -47,26 +56,28 @@ This custom component provides:
 1. Open HACS in your Home Assistant instance
 2. Go to "Integrations"
 3. Click the three dots menu and select "Custom repositories"
-4. Add `https://github.com/loryanstrant/HA-ElevenLabs-Custom-TTS` as repository
+4. Add `https://github.com/loryanstrant/HA-xAI-Custom-TTS` as repository
 5. Set category to "Integration"
 6. Click "Add"
-7. Find "ElevenLabs Custom TTS" in the integration list and install it
+7. Find "xAI Custom TTS" in the integration list and install it
 8. Restart Home Assistant
 9. Go to Configuration > Integrations
-10. Click "Add Integration" and search for "ElevenLabs Custom TTS"
-11. Enter your ElevenLabs API key
+10. Click "Add Integration" and search for "xAI Custom TTS"
+11. Enter your xAI API key from [console.x.ai](https://console.x.ai/team/default/api-keys)
 
 Or replace steps 1-6 with this:
 
-[![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=loryanstrant&repository=HA-ElevenLabs-Custom-TTS&category=integration)
+[![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=loryanstrant&repository=HA-xAI-Custom-TTS&category=integration)
 
 ### Manual Installation
 
-1. Copy the `custom_components/elevenlabs_custom_tts` folder to your Home Assistant `custom_components` directory
+1. Copy the `custom_components/xai_custom_tts` folder to your Home Assistant `custom_components` directory
 2. Restart Home Assistant
 3. Go to Configuration > Integrations
-4. Click "Add Integration" and search for "ElevenLabs Custom TTS"
-5. Enter your ElevenLabs API key
+4. Click "Add Integration" and search for "xAI Custom TTS"
+5. Enter your xAI API key from [console.x.ai](https://console.x.ai/team/default/api-keys)
+
+---
 
 ## 🎭 Voice Profile Management
 
@@ -75,12 +86,9 @@ After installation, you can create and manage voice profiles through the Home As
 ### Accessing Voice Profile Settings
 
 1. Go to **Settings** → **Devices & Services** → **Integrations**
-2. Find your **ElevenLabs Custom TTS** integration
+2. Find your **xAI Custom TTS** integration
 3. Click **Configure** (or the gear icon)
 4. You'll see the Voice Profile Management interface
-
-<img width="1555" height="879" alt="Voice Profile Management interface in Home Assistant" src="https://github.com/user-attachments/assets/316fce70-0322-41c3-98e3-4badb423e7de" />
-
 
 ### Managing Voice Profiles
 
@@ -88,19 +96,33 @@ After installation, you can create and manage voice profiles through the Home As
 
 1. In the Voice Profile Management interface, select **"Add New Voice Profile"**
 2. Fill out the profile details:
-   - **Profile Name**: A descriptive name for your profile (e.g., "Morgan Freeman Style")
-   - **Voice ID**: The ElevenLabs voice ID to use
-   - **Model**: Choose the ElevenLabs model (default: "eleven_multilingual_v2")
-   - **Voice Stability**: Control voice consistency (0.0-1.0, default: 0.5)
-   - **Similarity Boost**: Enhance voice similarity (0.0-1.0, default: 0.75)
-   - **Style Exaggeration**: Control voice style intensity (0.0-1.0, default: 0.0)
-   - **Speech Speed**: Speech rate multiplier (0.25-4.0, default: 1.0)
-   - **Enable Speaker Boost**: Enhance speaker clarity (default: true)
+   - **Profile Name**: A descriptive name for your profile (e.g., "News Reader", "Bedtime Story")
+   - **Voice**: Choose from the 5 xAI voices
+   - **Language**: Select the language code (default: "en", or use "auto" for auto-detection)
+   - **Audio Codec**: Select output format (MP3, WAV, PCM, G.711 μ-law, G.711 A-law)
+   - **Sample Rate**: Audio quality (24000 Hz default, lower for telephony)
+   - **Bit Rate**: Compression quality for MP3 (128000 bps default)
 3. Click **Submit** to save the profile
 
-<img width="1282" height="1184" alt="Create New Voice Profile dialog showing configuration options" src="https://github.com/user-attachments/assets/6c9d8f81-7062-4abb-970e-7a850013cb8a" />
+#### Available Voices
 
+| Voice | Type | Tone | Best For |
+|-------|------|------|----------|
+| **Eve** | Female | Energetic, upbeat | Engaging announcements, energetic content |
+| **Ara** | Female | Warm, friendly | Conversational interactions, friendly greetings |
+| **Rex** | Male | Confident, clear | Professional announcements, business content |
+| **Sal** | Neutral | Smooth, balanced | General purpose, versatile contexts |
+| **Leo** | Male | Authoritative, strong | Instructions, alerts, important announcements |
 
+#### Audio Format Recommendations
+
+| Use Case | Codec | Sample Rate | Notes |
+|----------|-------|-------------|-------|
+| **General Home Assistant** | MP3 | 24000 Hz | Good balance of quality and size |
+| **High Quality Audio** | WAV | 44100 Hz | Uncompressed, best quality |
+| **SIP/PBX Integration** | mulaw | 8000 Hz | Native telephony format |
+| **VoIP Systems** | alaw | 8000 Hz | European telephony standard |
+| **Low Bandwidth** | MP3 | 16000 Hz | Smaller files, faster streaming |
 
 #### Modifying an Existing Profile
 
@@ -109,15 +131,11 @@ After installation, you can create and manage voice profiles through the Home As
 3. Update any settings you want to change
 4. Click **Submit** to save changes
 
-<img width="1250" height="741" alt="Modify Voice Profile interface showing editable settings" src="https://github.com/user-attachments/assets/ba26b3b7-a753-445e-a491-1525d52e7b79" />
-
-
 #### Deleting a Profile
 
 1. Select **"Delete Voice Profile"**
 2. Choose the profile to delete from the dropdown
 3. Confirm the deletion
-
 
 ### Using Voice Profiles
 
@@ -126,57 +144,45 @@ Once you've created voice profiles, you can use them in your TTS calls:
 ```yaml
 service: tts.speak
 data:
-  entity_id: tts.elevenlabs_custom_tts  # Note: Default entity ID
+  entity_id: tts.xai_custom_tts  # Note: Default entity ID
   message: "This message uses my custom voice profile!"
   media_player_entity_id: media_player.living_room_speaker
   options:
-    voice_profile: "Morgan Freeman Style"  # Use your saved profile
+    voice_profile: "News Reader"  # Use your saved profile
 ```
-
-<img width="1771" height="1233" alt="Home Assistant automation configuration showing voice profile usage" src="https://github.com/user-attachments/assets/624e6595-e8d4-4c2e-bf18-af6a38d14bcb" />
-
 
 You can also combine voice profiles with custom options (custom options override profile settings):
 
 ```yaml
 service: tts.speak
 data:
-  entity_id: tts.elevenlabs_custom_tts
-  message: "This uses the profile but with faster speed."
+  entity_id: tts.xai_custom_tts
+  message: "This uses the profile but in Spanish."
   media_player_entity_id: media_player.living_room_speaker
   options:
-    voice_profile: "Morgan Freeman Style"
-    speed: 1.5  # This overrides the profile's speed setting
+    voice_profile: "News Reader"
+    language: "es"  # This overrides the profile's language setting
 ```
+
+---
 
 ## Usage
 
 ### Get Voices Service
 
-Retrieves all available voices from your ElevenLabs account with optional filtering:
+Retrieves all available xAI voices with optional filtering:
 
 ```yaml
 # Get all voices
-service: elevenlabs_custom_tts.get_voices
-
-# Filter by voice type
-service: elevenlabs_custom_tts.get_voices
-data:
-  voice_type: "premade"  # Options: premade, cloned, generated, professional
+service: xai_custom_tts.get_voices
 
 # Search for voices
-service: elevenlabs_custom_tts.get_voices
+service: xai_custom_tts.get_voices
 data:
-  search_text: "british"  # Search by name, description, or labels
-
-# Combined filtering
-service: elevenlabs_custom_tts.get_voices
-data:
-  voice_type: "premade"
-  search_text: "male"
+  search_text: "female"  # Search by name, type, tone, or description
 ```
 
-This returns a list of voices with their IDs, names, categories, and other metadata.
+This returns a list of voices with their IDs, names, types, tones, and descriptions.
 
 ### Native TTS Integration
 
@@ -186,32 +192,44 @@ Use with Home Assistant's native TTS services for direct media player output:
 ```yaml
 service: tts.speak
 data:
-  entity_id: tts.elevenlabs_custom_tts  # Default entity ID
-  message: "Hello from Home Assistant!"
+  entity_id: tts.xai_custom_tts  # Default entity ID
+  message: "Hello from Home Assistant using xAI!"
   media_player_entity_id: media_player.living_room_speaker
 ```
 
-#### Advanced TTS with Custom Voice Parameters
+#### Advanced TTS with Custom Options
 ```yaml
 service: tts.speak  
 data:
-  entity_id: tts.elevenlabs_custom_tts
+  entity_id: tts.xai_custom_tts
   message: "Good morning! The weather today is sunny."
   media_player_entity_id: media_player.living_room_speaker
   options:
-    voice: "21m00Tcm4TlvDq8ikWAM"  # ElevenLabs voice ID
-    stability: 0.7
-    similarity_boost: 0.8
-    style: 0.2
-    speed: 1.0
-    use_speaker_boost: true
+    voice: "rex"  # xAI voice ID: eve, ara, rex, sal, leo
+    language: "en"
+    codec: "mp3"
+    sample_rate: 24000
+    bit_rate: 128000
+```
+
+#### Telephony-Ready Output (G.711)
+```yaml
+service: tts.speak  
+data:
+  entity_id: tts.xai_custom_tts
+  message: "You have reached the automated attendant."
+  media_player_entity_id: media_player.pbx_gateway
+  options:
+    voice: "sal"  # Neutral voice
+    codec: "mulaw"  # G.711 μ-law for telephony
+    sample_rate: 8000  # Standard telephony rate
 ```
 
 #### Using Voice Profiles
 ```yaml
 service: tts.speak  
 data:
-  entity_id: tts.elevenlabs_custom_tts
+  entity_id: tts.xai_custom_tts
   message: "This announcement uses my custom voice profile."
   media_player_entity_id: media_player.living_room_speaker
   options:
@@ -220,216 +238,187 @@ data:
 
 ### Example Automations
 
-#### Smart Voice Selection with TTS
+#### Morning Announcement with xAI
 ```yaml
 automation:
-  - alias: "Smart Morning Announcement"
+  - alias: "Morning Announcement"
     trigger:
       - platform: time
         at: "07:00:00"
     action:
-      # Get male voices for morning announcements
-      - service: elevenlabs_custom_tts.get_voices
-        data:
-          voice_type: "premade"
-          search_text: "male"
-        response_variable: male_voices
-      
-      # Generate and play directly to speakers using native TTS
       - service: tts.speak
         data:
-          entity_id: tts.elevenlabs_custom_tts
+          entity_id: tts.xai_custom_tts
           message: "Good morning! Today is {{ now().strftime('%A, %B %d') }}. The weather is {{ states('weather.home') }}."
-          media_player_entity_id: media_player.all_speakers
+          media_player_entity_id: media_player.bedroom_speaker
           options:
-            voice: "{{ male_voices.voices[0].voice_id if male_voices.voices else '21m00Tcm4TlvDq8ikWAM' }}"
-            stability: 0.6
-            similarity_boost: 0.8
+            voice: "ara"  # Warm, friendly female voice
+            language: "en"
 ```
 
-#### Dynamic Voice Search for Security Alerts
+#### Security Alert with Authoritative Voice
 ```yaml
 automation:
-  - alias: "Security Alert with Voice Selection"
+  - alias: "Security Alert"
     trigger:
       - platform: state
         entity_id: binary_sensor.front_door
         to: "on"
     action:
-      # Find authoritative voices for security alerts
-      - service: elevenlabs_custom_tts.get_voices
-        data:
-          search_text: "authoritative"
-        response_variable: security_voices
-        
-      # Announce to living room
       - service: tts.speak
         data:
-          entity_id: tts.elevenlabs_custom_tts
+          entity_id: tts.xai_custom_tts
           message: "Security alert: Front door has been opened."
           media_player_entity_id: media_player.living_room_speaker
           options:
-            voice: "{{ security_voices.voices[0].voice_id if security_voices.voices else '21m00Tcm4TlvDq8ikWAM' }}"
-            stability: 0.9
-            style: 0.3
-            
-      # Also announce to bedroom
-      - service: tts.speak
-        data:
-          entity_id: tts.elevenlabs_custom_tts
-          message: "Security alert: Front door has been opened."
-          media_player_entity_id: media_player.bedroom_speaker
-          options:
-            voice: "{{ security_voices.voices[0].voice_id if security_voices.voices else '21m00Tcm4TlvDq8ikWAM' }}"
-            stability: 0.9
-            style: 0.3
+            voice: "leo"  # Authoritative male voice
 ```
 
-#### Simple TTS Usage
+#### Multi-Language Announcement
 ```yaml
 automation:
-  - alias: "Simple TTS Test"
-    trigger:
-      - platform: state
-        entity_id: input_button.test_tts
-    action:
-      - service: tts.speak
-        data:
-          entity_id: tts.elevenlabs_custom_tts
-          message: "Hello from Home Assistant!"
-          media_player_entity_id: media_player.living_room_speaker
-          options:
-            voice: "21m00Tcm4TlvDq8ikWAM"
-            stability: 0.7
-            similarity_boost: 0.8
-```
-
-#### Using Voice Profiles in Automations
-```yaml
-automation:
-  - alias: "Morning Announcement with Voice Profile"
+  - alias: "Spanish Announcement"
     trigger:
       - platform: time
-        at: "07:00:00"
+        at: "12:00:00"
     action:
       - service: tts.speak
         data:
-          entity_id: tts.elevenlabs_custom_tts
-          message: "Good morning! Today's weather is {{ states('weather.home') }}."
-          media_player_entity_id: media_player.bedroom_speaker
+          entity_id: tts.xai_custom_tts
+          message: "Buenas tardes. Es la hora del almuerzo."
+          media_player_entity_id: media_player.kitchen_speaker
           options:
-            voice_profile: "Morning Announcer"  # Use saved voice profile
-            
-  - alias: "Bedtime Story with Custom Profile"
+            voice: "eve"
+            language: "es-MX"  # Spanish (Mexico)
+```
+
+#### Bedtime Story with Voice Profile
+```yaml
+automation:
+  - alias: "Bedtime Story"
     trigger:
       - platform: time
         at: "20:00:00"
     action:
       - service: tts.speak
         data:
-          entity_id: tts.elevenlabs_custom_tts
+          entity_id: tts.xai_custom_tts
           message: "Once upon a time, in a land far away..."
           media_player_entity_id: media_player.kids_room_speaker
           options:
             voice_profile: "Storyteller"
-            speed: 0.9  # Override profile speed for bedtime
 ```
+
+---
 
 ## Parameters
 
 ### Get Voices Service Parameters
 
-- **voice_type** (optional): Filter voices by category
-  - Options: "premade", "cloned", "generated", "professional"
-- **search_text** (optional): Search for voices by name, description, or labels  
-  - Example: "british", "male", "authoritative"
+- **search_text** (optional): Search for voices by name, type, tone, or description
+  - Example: "female", "male", "energetic", "professional"
 
-**Returns:** List of voices with voice_id, name, category, description, and labels
+**Returns:** List of voices with voice_id, name, type, tone, and description
 
 ### TTS Platform Options
 
 When using Home Assistant's native TTS services, you can pass these options:
 
 - **voice_profile** (optional): Use a saved voice profile by name (overrides individual settings)
-- **voice** (optional): ElevenLabs voice ID to use (default: "21m00Tcm4TlvDq8ikWAM")
-- **model_id** (optional): ElevenLabs model ID (default: "eleven_multilingual_v2") 
-- **stability** (optional): Voice stability (0.0-1.0, default: 0.5)
-- **similarity_boost** (optional): Similarity boost (0.0-1.0, default: 0.75)
-- **style** (optional): Voice style (0.0-1.0, default: 0.0)
-- **speed** (optional): Speech speed multiplier (0.25-4.0, default: 1.0)
-- **use_speaker_boost** (optional): Enable speaker boost (default: true)
+- **voice** (optional): xAI voice ID to use (default: "eve")
+  - Options: `eve`, `ara`, `rex`, `sal`, `leo`
+- **language** (optional): Language code (default: "en")
+  - Options: `auto`, `en`, `ar-EG`, `ar-SA`, `ar-AE`, `bn`, `zh`, `fr`, `de`, `hi`, `id`, `it`, `ja`, `ko`, `pt-BR`, `pt-PT`, `ru`, `es-MX`, `es-ES`, `tr`, `vi`
+- **codec** (optional): Audio codec (default: "mp3")
+  - Options: `mp3`, `wav`, `pcm`, `mulaw`, `alaw`
+- **sample_rate** (optional): Sample rate in Hz (default: 24000)
+  - Options: `8000`, `16000`, `22050`, `24000`, `44100`, `48000`
+- **bit_rate** (optional): Bit rate for MP3 in bps (default: 128000)
+  - Options: `32000`, `64000`, `96000`, `128000`, `192000`
 
 **Note:** When using `voice_profile`, the profile settings are applied first, then any additional options override specific profile settings.
+
+---
 
 ## 🚨 Troubleshooting
 
 ### Entity ID Not Found
-- **Default Entity ID**: `tts.elevenlabs_custom_tts`
-- **Check Entity Registry**: Go to Settings → Devices & Services → Entities and search for "elevenlabs"
-- **Alternative Entity Names**: The entity might appear as `tts.elevenlabs` in some configurations
+- **Default Entity ID**: `tts.xai_custom_tts`
+- **Check Entity Registry**: Go to Settings → Devices & Services → Entities and search for "xai"
 
 ### Voice Profiles Not Working
 - Ensure you're using the correct `voice_profile` name (case-sensitive)
-- Check that the profile exists in Settings → Integrations → ElevenLabs Custom TTS → Configure
-- Verify the voice profile contains valid ElevenLabs voice IDs
+- Check that the profile exists in Settings → Integrations → xAI Custom TTS → Configure
 
 ### API Errors
-- Verify your ElevenLabs API key is correct and has sufficient quota
+- Verify your xAI API key is correct from [console.x.ai](https://console.x.ai/team/default/api-keys)
 - Check Home Assistant logs for detailed error messages
 - Ensure your internet connection is stable
+
+### Audio Quality Issues
+- For higher quality, use `codec: "wav"` with `sample_rate: 44100`
+- For telephony integration, use `codec: "mulaw"` with `sample_rate: 8000`
+- MP3 `bit_rate` only applies when using `codec: "mp3"`
 
 ### Integration Not Loading
 - Restart Home Assistant after installation
 - Check that the `custom_components` directory structure is correct:
   ```
   custom_components/
-  └── elevenlabs_custom_tts/
+  └── xai_custom_tts/
       ├── __init__.py
       ├── manifest.json
       ├── config_flow.py
       ├── tts.py
       ├── const.py
       ├── strings.json
-      └── services.yaml
+      ├── services.yaml
+      └── translations/
+          └── en.json
   ```
+
+---
 
 ## 📝 Changelog
 
-### Version 0.5.7
-- **Improved logging**: Fixed debug logging levels for cleaner logs
-- **Code quality**: Addressed GitHub code quality recommendations
+### Version 1.0.0
+- **Initial Release**: Migrated from ElevenLabs to xAI Voice API
+- **Simplified Voice Management**: 5 distinct voices with clear use cases
+- **Multi-Language Support**: 21 languages including auto-detection
+- **Voice Profiles**: Complete UI for managing voice configurations
+- **Audio Formats**: MP3, WAV, PCM, G.711 μ-law, G.711 A-law support
+- **Telephony Ready**: Native G.711 codec support for SIP/PBX integration
 
-### Version 0.5.6
-- **Voice Profile Management**: Complete UI for creating, modifying, and deleting voice profiles
-- **Enhanced Configuration**: User-friendly field labels and descriptions in config flow
-- **Service Cleanup**: Removed redundant `save_voice_profile` service
-- **Better Error Handling**: Improved error messages and validation
-
-### Version 0.5.x and earlier
-- Native TTS platform integration
-- Voice filtering and search capabilities
-- Enhanced voice discovery features
-- Multi-language support
+---
 
 ## Requirements
 
-- Home Assistant 2023.1 or later
-- ElevenLabs API key
+- Home Assistant 2024.8 or later
+- xAI API key from [console.x.ai](https://console.x.ai/team/default/api-keys)
 - Internet connection for API calls
 
+---
 
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
 
-## Development Approach
-<img width="256" height="256" alt="Vibe Coding with GitHub Copilot 256x256" src="https://github.com/user-attachments/assets/bb41d075-6b3e-4f2b-a88e-94b2022b5d4f" />
-
+---
 
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
+---
+
 ## Support
 
-If you encounter any issues, please report them on the [GitHub Issues page](https://github.com/loryanstrant/HA-ElevenLabs-Custom-TTS/issues).
+If you encounter any issues, please report them on the [GitHub Issues page](https://github.com/loryanstrant/HA-xAI-Custom-TTS/issues).
+
+---
+
+## xAI Voice Resources
+
+- [xAI Voice API Documentation](https://docs.x.ai/docs/api-reference#text-to-speech)
+- [xAI Voice Demos](https://x.ai/api/voice)
+- [Get xAI API Key](https://console.x.ai/team/default/api-keys)

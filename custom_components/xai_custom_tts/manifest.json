@@ -1,0 +1,14 @@
+{
+  "domain": "xai_custom_tts",
+  "name": "xAI Custom TTS",
+  "codeowners": ["@loryanstrant"],
+  "config_flow": true,
+  "dependencies": ["tts"],
+  "documentation": "https://github.com/loryanstrant/HA-xAI-Custom-TTS",
+  "integration_type": "service",
+  "iot_class": "cloud_polling",
+  "issue_tracker": "https://github.com/loryanstrant/HA-xAI-Custom-TTS/issues",
+  "loggers": ["xai_custom_tts"],
+  "requirements": [],
+  "version": "1.0.0"
+}

@@ -1,0 +1,103 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "xAI Custom TTS",
+        "description": "Configure your xAI API key from https://console.x.ai/team/default/api-keys",
+        "data": {
+          "api_key": "API Key"
+        }
+      }
+    },
+    "error": {
+      "invalid_api_key": "Invalid API key. Please check your xAI API key.",
+      "unknown": "Unknown error occurred"
+    },
+    "abort": {
+      "already_configured": "xAI Custom TTS is already configured with this API key"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Voice Profile Management",
+        "description": "Manage voice profiles for xAI TTS.\n\nCurrent profiles:\n{current_profiles}",
+        "data": {
+          "action": "What would you like to do?"
+        },
+        "data_description": {
+          "action": "Choose an action to manage your voice profiles"
+        }
+      },
+      "add_profile": {
+        "title": "Add New Voice Profile",
+        "description": "Create a new voice profile. xAI provides 5 distinct voices: Eve (energetic female), Ara (warm female), Rex (professional male), Sal (neutral), and Leo (authoritative male).",
+        "data": {
+          "profile_name": "Profile Name",
+          "voice": "Voice",
+          "language": "Language",
+          "codec": "Audio Codec",
+          "sample_rate": "Sample Rate",
+          "bit_rate": "Bit Rate (MP3 only)"
+        },
+        "data_description": {
+          "profile_name": "A unique name for this voice profile (e.g., 'Morning News', 'Bedtime Stories')",
+          "voice": "xAI voice to use (Eve, Ara, Rex, Sal, or Leo)",
+          "language": "Language code for speech (e.g., en, es, fr, de, auto for auto-detect)",
+          "codec": "Audio codec: MP3 (compressed), WAV (uncompressed), PCM, or telephony formats (G.711)",
+          "sample_rate": "Audio sample rate in Hz. Higher = better quality, larger file",
+          "bit_rate": "Bit rate for MP3 compression. Higher = better quality, larger file (MP3 only)"
+        }
+      },
+      "modify_profile": {
+        "title": "Modify Voice Profile",
+        "description": "Select a voice profile to modify",
+        "data": {
+          "selected_profile": "Profile to Modify"
+        },
+        "data_description": {
+          "selected_profile": "Choose which voice profile you want to edit"
+        }
+      },
+      "edit_profile": {
+        "title": "Edit Voice Profile",
+        "description": "Modify the settings for this voice profile.",
+        "data": {
+          "profile_name": "Profile Name",
+          "voice": "Voice",
+          "language": "Language",
+          "codec": "Audio Codec",
+          "sample_rate": "Sample Rate",
+          "bit_rate": "Bit Rate (MP3 only)"
+        },
+        "data_description": {
+          "profile_name": "A unique name for this voice profile (e.g., 'Morning News', 'Bedtime Stories')",
+          "voice": "xAI voice to use (Eve, Ara, Rex, Sal, or Leo)",
+          "language": "Language code for speech (e.g., en, es, fr, de, auto for auto-detect)",
+          "codec": "Audio codec: MP3 (compressed), WAV (uncompressed), PCM, or telephony formats (G.711)",
+          "sample_rate": "Audio sample rate in Hz. Higher = better quality, larger file",
+          "bit_rate": "Bit rate for MP3 compression. Higher = better quality, larger file (MP3 only)"
+        }
+      },
+      "delete_profile": {
+        "title": "Delete Voice Profile",
+        "description": "Select a voice profile to delete",
+        "data": {
+          "profile_name": "Profile to Delete"
+        },
+        "data_description": {
+          "profile_name": "Choose which voice profile you want to remove permanently"
+        }
+      }
+    },
+    "error": {
+      "profile_exists": "A profile with this name already exists"
+    }
+  },
+  "services": {
+    "get_voices": {
+      "name": "Get Voices",
+      "description": "Retrieve all available voices from xAI API"
+    }
+  }
+}

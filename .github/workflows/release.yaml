@@ -19,14 +19,14 @@ jobs:
 
       - name: Create zip file
         run: |
-          cd custom_components/elevenlabs_custom_tts
-          zip -r ../../elevenlabs_custom_tts.zip . -x "__pycache__/*" "*.pyc" "*.pyo"
+          cd custom_components/xai_custom_tts
+          zip -r ../../xai_custom_tts.zip . -x "__pycache__/*" "*.pyc" "*.pyo"
 
       - name: Upload zip to release
         uses: svenstaro/upload-release-action@v2
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
-          file: ./elevenlabs_custom_tts.zip
-          asset_name: elevenlabs_custom_tts.zip
+          file: ./xai_custom_tts.zip
+          asset_name: xai_custom_tts.zip
           tag: ${{ github.event.release.tag_name }}
           overwrite: true

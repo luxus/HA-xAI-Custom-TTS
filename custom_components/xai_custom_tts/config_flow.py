@@ -1,12 +1,11 @@
-"""Config flow for ElevenLabs Custom TTS integration."""
+"""Config flow for xAI Custom TTS integration."""
 
 from __future__ import annotations
 
 import logging
 from typing import Any
 
-from elevenlabs import AsyncElevenLabs
-from elevenlabs.core import ApiError
+import httpx
 import voluptuous as vol
 
 from homeassistant.config_entries import ConfigEntry, ConfigFlow, ConfigFlowResult, OptionsFlow
@@ -16,86 +15,128 @@ from homeassistant.helpers.httpx_client import get_async_client
 
 from .const import (
     DOMAIN,
-    DEFAULT_MODEL,
-    DEFAULT_STABILITY,
-    DEFAULT_SIMILARITY_BOOST,
-    DEFAULT_STYLE,
-    DEFAULT_SPEED,
-    DEFAULT_USE_SPEAKER_BOOST,
-    DEFAULT_APPLY_TEXT_NORMALIZATION,
+    XAI_VOICES,
+    XAI_VOICES_URL,
+    XAI_TTS_URL,
+    DEFAULT_VOICE,
+    DEFAULT_LANGUAGE,
+    DEFAULT_CODEC,
+    DEFAULT_SAMPLE_RATE,
+    DEFAULT_BIT_RATE,
+    SUPPORT_LANGUAGES,
+    SUPPORT_CODECS,
+    SUPPORT_SAMPLE_RATES,
+    SUPPORT_BIT_RATES,
+    LANGUAGE_NAMES,
+    CODEC_NAMES,
 )
 
 # Schema field mappings for user-friendly labels
 PROFILE_NAME_KEY = "Profile Name"
-VOICE_ID_KEY = "Voice ID" 
-MODEL_KEY = "Model"
-STABILITY_KEY = "Voice Stability (0.0-1.0)"
-SIMILARITY_KEY = "Similarity Boost (0.0-1.0)"
-STYLE_KEY = "Style Exaggeration (0.0-1.0)"
-SPEED_KEY = "Speech Speed (0.25-4.0)"
-SPEAKER_BOOST_KEY = "Enable Speaker Boost"
-APPLY_TEXT_NORMALIZATION_KEY = "Apply Text Normalization"
+VOICE_ID_KEY = "Voice"
+LANGUAGE_KEY = "Language"
+CODEC_KEY = "Audio Codec"
+SAMPLE_RATE_KEY = "Sample Rate (Hz)"
+BIT_RATE_KEY = "Bit Rate (bps, MP3 only)"
+
+_LOGGER = logging.getLogger(__name__)
+
 
 def _map_form_data_to_profile(user_input: dict[str, Any]) -> dict[str, Any]:
     """Map form data with friendly keys back to profile data with standard keys."""
     return {
-        "voice": user_input.get(VOICE_ID_KEY, ""),
-        "model_id": user_input.get(MODEL_KEY, DEFAULT_MODEL),
-        "stability": user_input.get(STABILITY_KEY, DEFAULT_STABILITY),
-        "similarity_boost": user_input.get(SIMILARITY_KEY, DEFAULT_SIMILARITY_BOOST),
-        "style": user_input.get(STYLE_KEY, DEFAULT_STYLE),
-        "speed": user_input.get(SPEED_KEY, DEFAULT_SPEED),
-        "use_speaker_boost": user_input.get(SPEAKER_BOOST_KEY, DEFAULT_USE_SPEAKER_BOOST),
-        "apply_text_normalization": user_input.get(APPLY_TEXT_NORMALIZATION_KEY, DEFAULT_APPLY_TEXT_NORMALIZATION),
+        "voice": user_input.get(VOICE_ID_KEY, DEFAULT_VOICE),
+        "language": user_input.get(LANGUAGE_KEY, DEFAULT_LANGUAGE),
+        "codec": user_input.get(CODEC_KEY, DEFAULT_CODEC),
+        "sample_rate": user_input.get(SAMPLE_RATE_KEY, DEFAULT_SAMPLE_RATE),
+        "bit_rate": user_input.get(BIT_RATE_KEY, DEFAULT_BIT_RATE),
     }
+
 
 def _map_profile_to_form_data(profile_name: str, profile_data: dict[str, Any]) -> dict[str, Any]:
     """Map profile data with standard keys to form data with friendly keys."""
     return {
         PROFILE_NAME_KEY: profile_name,
-        VOICE_ID_KEY: profile_data.get("voice", ""),
-        MODEL_KEY: profile_data.get("model_id", DEFAULT_MODEL),
-        STABILITY_KEY: profile_data.get("stability", DEFAULT_STABILITY),
-        SIMILARITY_KEY: profile_data.get("similarity_boost", DEFAULT_SIMILARITY_BOOST),
-        STYLE_KEY: profile_data.get("style", DEFAULT_STYLE),
-        SPEED_KEY: profile_data.get("speed", DEFAULT_SPEED),
-        SPEAKER_BOOST_KEY: profile_data.get("use_speaker_boost", DEFAULT_USE_SPEAKER_BOOST),
-        APPLY_TEXT_NORMALIZATION_KEY: profile_data.get("apply_text_normalization", DEFAULT_APPLY_TEXT_NORMALIZATION),
+        VOICE_ID_KEY: profile_data.get("voice", DEFAULT_VOICE),
+        LANGUAGE_KEY: profile_data.get("language", DEFAULT_LANGUAGE),
+        CODEC_KEY: profile_data.get("codec", DEFAULT_CODEC),
+        SAMPLE_RATE_KEY: profile_data.get("sample_rate", DEFAULT_SAMPLE_RATE),
+        BIT_RATE_KEY: profile_data.get("bit_rate", DEFAULT_BIT_RATE),
     }
+
 
 USER_STEP_SCHEMA = vol.Schema({vol.Required(CONF_API_KEY): str})
 
-_LOGGER = logging.getLogger(__name__)
-
 
 async def validate_api_key(hass: HomeAssistant, api_key: str) -> bool:
-    """Validate the API key by testing it with ElevenLabs API."""
+    """Validate the API key by testing it with xAI API."""
     httpx_client = get_async_client(hass)
-    client = AsyncElevenLabs(api_key=api_key, httpx_client=httpx_client)
-    
-    def _test_api_key():
-        """Test API key synchronously to avoid blocking import_module calls."""
-        import asyncio
-        try:
-            # Create a new event loop for this executor thread
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            try:
-                return loop.run_until_complete(client.voices.get_all())
-            finally:
-                loop.close()
-        except ApiError:
-            return None
     
     try:
-        result = await hass.async_add_executor_job(_test_api_key)
-        return result is not None
-    except Exception:
+        # Test by fetching voices list
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+        }
+        
+        response = await httpx_client.get(
+            XAI_VOICES_URL,
+            headers=headers,
+            timeout=10.0,
+        )
+        
+        # 200 OK means the key is valid
+        return response.status_code == 200
+    except httpx.HTTPStatusError as err:
+        _LOGGER.debug("API key validation failed with status %s", err.response.status_code)
+        return False
+    except Exception as err:
+        _LOGGER.debug("API key validation failed: %s", err)
         return False
 
 
-class ElevenLabsCustomTTSConfigFlow(ConfigFlow, domain=DOMAIN):
-    """Handle a config flow for ElevenLabs Custom TTS."""
+async def fetch_xai_voices(hass: HomeAssistant, api_key: str) -> dict[str, dict[str, str]]:
+    """Fetch available voices from xAI API."""
+    httpx_client = get_async_client(hass)
+    
+    try:
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+        }
+        
+        response = await httpx_client.get(
+            XAI_VOICES_URL,
+            headers=headers,
+            timeout=10.0,
+        )
+        
+        response.raise_for_status()
+        data = response.json()
+        
+        voices = {}
+        for voice in data.get("voices", []):
+            voice_id = voice.get("voice_id", "").lower()
+            name = voice.get("name", voice_id)
+            voices[voice_id] = {
+                "name": name,
+                "type": "Unknown",
+                "tone": "",
+                "description": f"xAI voice: {name}",
+            }
+        
+        # Merge with cached defaults for known voices
+        for voice_id, info in XAI_VOICES.items():
+            if voice_id in voices:
+                voices[voice_id].update(info)
+        
+        return voices
+        
+    except Exception as err:
+        _LOGGER.warning("Failed to fetch voices from xAI API: %s. Using cached defaults.", err)
+        return XAI_VOICES
+
+
+class XAICustomTTSConfigFlow(ConfigFlow, domain=DOMAIN):
+    """Handle a config flow for xAI Custom TTS."""
 
     VERSION = 1
 
@@ -103,7 +144,7 @@ class ElevenLabsCustomTTSConfigFlow(ConfigFlow, domain=DOMAIN):
     @callback
     def async_get_options_flow(config_entry):
         """Get options flow."""
-        return ElevenLabsOptionsFlow(config_entry)
+        return XAIOptionsFlow(config_entry)
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
@@ -121,7 +162,7 @@ class ElevenLabsCustomTTSConfigFlow(ConfigFlow, domain=DOMAIN):
             # Validate API key
             if await validate_api_key(self.hass, api_key):
                 return self.async_create_entry(
-                    title="ElevenLabs Custom TTS",
+                    title="xAI Custom TTS",
                     data=user_input,
                     options={"voice_profiles": {}},  # Initialize empty voice profiles
                 )
@@ -135,8 +176,8 @@ class ElevenLabsCustomTTSConfigFlow(ConfigFlow, domain=DOMAIN):
         )
 
 
-class ElevenLabsOptionsFlow(OptionsFlow):
-    """Handle options flow for ElevenLabs Custom TTS."""
+class XAIOptionsFlow(OptionsFlow):
+    """Handle options flow for xAI Custom TTS."""
 
     def __init__(self, config_entry: ConfigEntry) -> None:
         """Initialize the options flow."""
@@ -203,35 +244,42 @@ class ElevenLabsOptionsFlow(OptionsFlow):
                 
                 return self.async_create_entry(title="", data=new_options)
         
+        # Fetch voices from API for up-to-date list
+        api_key = self._config_entry.data.get(CONF_API_KEY)
+        voices = await fetch_xai_voices(self.hass, api_key)
+        
+        # Build voice options
+        voice_options = {voice_id: f"{info['name']} ({info['type']}) - {info['tone']}" 
+                        for voice_id, info in voices.items()}
+        
+        # Build language options with display names
+        language_options = {lang: LANGUAGE_NAMES.get(lang, lang) for lang in SUPPORT_LANGUAGES}
+        
+        # Build codec options with display names
+        codec_options = {codec: CODEC_NAMES.get(codec, codec) for codec in SUPPORT_CODECS}
+        
         return self.async_show_form(
             step_id="add_profile",
             data_schema=vol.Schema({
                 vol.Required(PROFILE_NAME_KEY): str,
-                vol.Required(VOICE_ID_KEY): str,
-                vol.Optional(MODEL_KEY, default=DEFAULT_MODEL): vol.In([
-                    "eleven_turbo_v2_5",
-                    "eleven_multilingual_v2", 
-                    "eleven_monolingual_v1",
-                    "eleven_turbo_v2"
-                ]),
-                vol.Optional(STABILITY_KEY, default=DEFAULT_STABILITY): vol.All(
-                    vol.Coerce(float), vol.Range(min=0, max=1)
-                ),
-                vol.Optional(SIMILARITY_KEY, default=DEFAULT_SIMILARITY_BOOST): vol.All(
-                    vol.Coerce(float), vol.Range(min=0, max=1)
-                ),
-                vol.Optional(STYLE_KEY, default=DEFAULT_STYLE): vol.All(
-                    vol.Coerce(float), vol.Range(min=0, max=1)
-                ),
-                vol.Optional(SPEED_KEY, default=DEFAULT_SPEED): vol.All(
-                    vol.Coerce(float), vol.Range(min=0.25, max=4.0)
-                ),
-                vol.Optional(SPEAKER_BOOST_KEY, default=DEFAULT_USE_SPEAKER_BOOST): bool,
-                vol.Optional(APPLY_TEXT_NORMALIZATION_KEY, default=DEFAULT_APPLY_TEXT_NORMALIZATION): vol.In([
-                    "on",
-                    "off",
-                    "auto"
-                ]),
+                vol.Required(VOICE_ID_KEY, default=DEFAULT_VOICE): vol.In(voice_options),
+                vol.Optional(LANGUAGE_KEY, default=DEFAULT_LANGUAGE): vol.In(language_options),
+                vol.Optional(CODEC_KEY, default=DEFAULT_CODEC): vol.In(codec_options),
+                vol.Optional(SAMPLE_RATE_KEY, default=DEFAULT_SAMPLE_RATE): vol.In({
+                    8000: "8000 Hz (Telephone quality)",
+                    16000: "16000 Hz (Wideband)",
+                    22050: "22050 Hz (Radio quality)",
+                    24000: "24000 Hz (xAI default)",
+                    44100: "44100 Hz (CD quality)",
+                    48000: "48000 Hz (Professional)",
+                }),
+                vol.Optional(BIT_RATE_KEY, default=DEFAULT_BIT_RATE): vol.In({
+                    32000: "32 kbps",
+                    64000: "64 kbps",
+                    96000: "96 kbps",
+                    128000: "128 kbps (Default)",
+                    192000: "192 kbps",
+                }),
             }),
             errors=errors,
         )
@@ -251,35 +299,38 @@ class ElevenLabsOptionsFlow(OptionsFlow):
                 profile_data = current_profiles[profile_name]
                 form_data = _map_profile_to_form_data(profile_name, profile_data)
                 
+                # Fetch voices from API
+                api_key = self._config_entry.data.get(CONF_API_KEY)
+                voices = await fetch_xai_voices(self.hass, api_key)
+                
+                # Build options
+                voice_options = {voice_id: f"{info['name']} ({info['type']}) - {info['tone']}" 
+                                for voice_id, info in voices.items()}
+                language_options = {lang: LANGUAGE_NAMES.get(lang, lang) for lang in SUPPORT_LANGUAGES}
+                codec_options = {codec: CODEC_NAMES.get(codec, codec) for codec in SUPPORT_CODECS}
+                
                 return self.async_show_form(
                     step_id="edit_profile",
                     data_schema=vol.Schema({
                         vol.Required(PROFILE_NAME_KEY, default=form_data[PROFILE_NAME_KEY]): str,
-                        vol.Required(VOICE_ID_KEY, default=form_data[VOICE_ID_KEY]): str,
-                        vol.Optional(MODEL_KEY, default=form_data[MODEL_KEY]): vol.In([
-                            "eleven_turbo_v2_5",
-                            "eleven_multilingual_v2", 
-                            "eleven_monolingual_v1",
-                            "eleven_turbo_v2"
-                        ]),
-                        vol.Optional(STABILITY_KEY, default=form_data[STABILITY_KEY]): vol.All(
-                            vol.Coerce(float), vol.Range(min=0, max=1)
-                        ),
-                        vol.Optional(SIMILARITY_KEY, default=form_data[SIMILARITY_KEY]): vol.All(
-                            vol.Coerce(float), vol.Range(min=0, max=1)
-                        ),
-                        vol.Optional(STYLE_KEY, default=form_data[STYLE_KEY]): vol.All(
-                            vol.Coerce(float), vol.Range(min=0, max=1)
-                        ),
-                        vol.Optional(SPEED_KEY, default=form_data[SPEED_KEY]): vol.All(
-                            vol.Coerce(float), vol.Range(min=0.25, max=4.0)
-                        ),
-                        vol.Optional(SPEAKER_BOOST_KEY, default=form_data[SPEAKER_BOOST_KEY]): bool,
-                        vol.Optional(APPLY_TEXT_NORMALIZATION_KEY, default=form_data[APPLY_TEXT_NORMALIZATION_KEY]): vol.In([
-                            "on",
-                            "off",
-                            "auto"
-                        ]),
+                        vol.Required(VOICE_ID_KEY, default=form_data[VOICE_ID_KEY]): vol.In(voice_options),
+                        vol.Optional(LANGUAGE_KEY, default=form_data[LANGUAGE_KEY]): vol.In(language_options),
+                        vol.Optional(CODEC_KEY, default=form_data[CODEC_KEY]): vol.In(codec_options),
+                        vol.Optional(SAMPLE_RATE_KEY, default=form_data[SAMPLE_RATE_KEY]): vol.In({
+                            8000: "8000 Hz (Telephone quality)",
+                            16000: "16000 Hz (Wideband)",
+                            22050: "22050 Hz (Radio quality)",
+                            24000: "24000 Hz (xAI default)",
+                            44100: "44100 Hz (CD quality)",
+                            48000: "48000 Hz (Professional)",
+                        }),
+                        vol.Optional(BIT_RATE_KEY, default=form_data[BIT_RATE_KEY]): vol.In({
+                            32000: "32 kbps",
+                            64000: "64 kbps",
+                            96000: "96 kbps",
+                            128000: "128 kbps (Default)",
+                            192000: "192 kbps",
+                        }),
                     })
                 )
         
@@ -295,22 +346,30 @@ class ElevenLabsOptionsFlow(OptionsFlow):
         errors = {}
         
         if user_input is not None:
-            old_profile_name = None
             current_profiles = self._config_entry.options.get("voice_profiles", {})
-            
-            # Find the original profile name by matching voice ID
+            new_profile_name = user_input[PROFILE_NAME_KEY]
             new_voice_id = user_input[VOICE_ID_KEY]
+            
+            # Find the original profile being edited
+            # We need to match by finding a profile that had this voice before editing
+            old_profile_name = None
             for name, data in current_profiles.items():
-                if data.get("voice") == new_voice_id:
+                # Check if this profile was likely the one being edited
+                # by comparing the submitted voice with existing profiles
+                if data.get("voice") == new_voice_id and name != new_profile_name:
                     old_profile_name = name
                     break
             
-            new_profile_name = user_input[PROFILE_NAME_KEY]
+            # If we can't find by voice, check if new_profile_name exists and is different
+            if old_profile_name is None and new_profile_name in current_profiles:
+                # The user is editing an existing profile with the same name
+                old_profile_name = new_profile_name
             
-            # Check if renaming and new name already exists
-            if old_profile_name != new_profile_name and new_profile_name in current_profiles:
+            # Check if renaming to a name that already exists (and it's a different profile)
+            if new_profile_name != old_profile_name and new_profile_name in current_profiles:
                 errors["profile_name"] = "profile_exists"
-            else:
+            
+            if not errors:
                 # Create updated profile from form data
                 updated_profile = _map_form_data_to_profile(user_input)
                 
@@ -319,8 +378,9 @@ class ElevenLabsOptionsFlow(OptionsFlow):
                 
                 # Remove old profile if name changed
                 if old_profile_name and old_profile_name != new_profile_name:
-                    del updated_profiles[old_profile_name]
-                    
+                    if old_profile_name in updated_profiles:
+                        del updated_profiles[old_profile_name]
+                
                 # Add/update profile with new name
                 updated_profiles[new_profile_name] = updated_profile
                 
@@ -330,7 +390,6 @@ class ElevenLabsOptionsFlow(OptionsFlow):
                 return self.async_create_entry(title="", data=new_options)
         
         # If we get here, there were errors, show form again
-        # We need to reconstruct the form with current values
         return await self.async_step_modify_profile()
 
     async def async_step_delete_profile(self, user_input: dict[str, Any] | None = None):

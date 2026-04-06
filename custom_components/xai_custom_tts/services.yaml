@@ -1,0 +1,11 @@
+get_voices:
+  name: Get Voices
+  description: Retrieve all available voices from xAI API with optional filtering
+  fields:
+    search_text:
+      name: Search Text
+      description: Search for voices by name, type, tone, or description
+      required: false
+      example: "female"
+      selector:
+        text:

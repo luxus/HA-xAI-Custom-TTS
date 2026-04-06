@@ -44,24 +44,49 @@ _LOGGER = logging.getLogger(__name__)
 
 def _map_form_data_to_profile(user_input: dict[str, Any]) -> dict[str, Any]:
     """Map form data with friendly keys back to profile data with standard keys."""
+    # Ensure numeric fields are integers
+    sample_rate = user_input.get(SAMPLE_RATE_KEY, DEFAULT_SAMPLE_RATE)
+    bit_rate = user_input.get(BIT_RATE_KEY, DEFAULT_BIT_RATE)
+    
+    # Convert to int (vol.In with int keys should give us ints, but be safe)
+    if not isinstance(sample_rate, int):
+        sample_rate = int(sample_rate)
+    if not isinstance(bit_rate, int):
+        bit_rate = int(bit_rate)
+    
     return {
         "voice": user_input.get(VOICE_ID_KEY, DEFAULT_VOICE),
         "language": user_input.get(LANGUAGE_KEY, DEFAULT_LANGUAGE),
         "codec": user_input.get(CODEC_KEY, DEFAULT_CODEC),
-        "sample_rate": user_input.get(SAMPLE_RATE_KEY, DEFAULT_SAMPLE_RATE),
-        "bit_rate": user_input.get(BIT_RATE_KEY, DEFAULT_BIT_RATE),
+        "sample_rate": sample_rate,
+        "bit_rate": bit_rate,
     }
 
 
 def _map_profile_to_form_data(profile_name: str, profile_data: dict[str, Any]) -> dict[str, Any]:
     """Map profile data with standard keys to form data with friendly keys."""
+    # Ensure numeric fields are integers (config entries may store them as floats or strings)
+    sample_rate = profile_data.get("sample_rate", DEFAULT_SAMPLE_RATE)
+    bit_rate = profile_data.get("bit_rate", DEFAULT_BIT_RATE)
+    
+    # Convert to int if needed
+    if isinstance(sample_rate, float):
+        sample_rate = int(sample_rate)
+    elif isinstance(sample_rate, str):
+        sample_rate = int(sample_rate)
+        
+    if isinstance(bit_rate, float):
+        bit_rate = int(bit_rate)
+    elif isinstance(bit_rate, str):
+        bit_rate = int(bit_rate)
+    
     return {
         PROFILE_NAME_KEY: profile_name,
         VOICE_ID_KEY: profile_data.get("voice", DEFAULT_VOICE),
         LANGUAGE_KEY: profile_data.get("language", DEFAULT_LANGUAGE),
         CODEC_KEY: profile_data.get("codec", DEFAULT_CODEC),
-        SAMPLE_RATE_KEY: profile_data.get("sample_rate", DEFAULT_SAMPLE_RATE),
-        BIT_RATE_KEY: profile_data.get("bit_rate", DEFAULT_BIT_RATE),
+        SAMPLE_RATE_KEY: sample_rate,
+        BIT_RATE_KEY: bit_rate,
     }
 
 

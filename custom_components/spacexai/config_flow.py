@@ -232,7 +232,11 @@ class SpaceXAIConfigFlow(ConfigFlow, domain=DOMAIN):
                 return await self.async_step_api_key()
             return await self.async_step_oauth()
 
-        return self.async_show_form(step_id="user", data_schema=USER_SCHEMA)
+        return self.async_show_form(
+            step_id="user",
+            data_schema=USER_SCHEMA,
+            description_placeholders={"api_url": "https://api.x.ai"},
+        )
 
     async def async_step_oauth(
         self, user_input: dict[str, Any] | None = None
@@ -353,6 +357,7 @@ class SpaceXAIConfigFlow(ConfigFlow, domain=DOMAIN):
             step_id="api_key",
             data_schema=API_KEY_SCHEMA,
             errors=errors,
+            description_placeholders={"api_url": "https://api.x.ai"},
         )
 
     def _create(self, data: dict[str, Any]) -> ConfigFlowResult:

@@ -75,7 +75,7 @@ OAuth uses the public Grok CLI client from `ha-spacexai-auth` (device code + PKC
 ## Enable path
 
 1. Install **SpaceXAI** (HACS or manual) and restart Home Assistant.  
-   Manifest requirement: `ha-spacexai-auth @ git+https://github.com/luxus/ha-spacexai-auth.git@main`
+   Manifest requirement: `ha-spacexai-auth@git+https://github.com/luxus/ha-spacexai-auth.git@main`
 2. **Settings → Devices & services → Add integration → SpaceXAI**
 3. **Sign in with Grok** (default). Home Assistant shows a URL + user code, polls the token endpoint, and stores access + refresh tokens.  
    Or choose **xAI API key** if OAuth entitlement is missing / you bill via [console.x.ai](https://console.x.ai/team/default/api-keys).

@@ -22,7 +22,7 @@
           "auth_method": "Grok authentication"
         },
         "data_description": {
-          "auth_method": "Primary: Sign in with Grok (Grok CLI public client). Fallback: API key for https://api.x.ai."
+          "auth_method": "Primary: Sign in with Grok (Grok CLI public client). Fallback: API key for {api_url}."
         }
       },
       "oauth": {
@@ -37,7 +37,7 @@
       },
       "api_key": {
         "title": "xAI API key (fallback)",
-        "description": "Use a console.x.ai API key when OAuth entitlement is missing or you bill via the developer API at https://api.x.ai. This is not the default.",
+        "description": "Use a console.x.ai API key when OAuth entitlement is missing or you bill via the developer API at {api_url}. This is not the default.",
         "data": {
           "api_key": "xAI API Key"
         }

@@ -17,6 +17,7 @@ def test_manifest_requires_ha_spacexai_auth() -> None:
     assert any(
         "git+https://github.com/luxus/ha-spacexai-auth.git@main" in item for item in reqs
     )
+    assert all(" " not in item for item in reqs)
 
 
 def test_manifest_domain_and_platforms() -> None:

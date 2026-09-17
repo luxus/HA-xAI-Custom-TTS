@@ -1,0 +1,152 @@
+{
+  "config": {
+    "abort": {
+      "already_configured": "SpaceXAI is already configured.",
+      "oauth_failed": "Grok sign-in was cancelled.",
+      "reauth_successful": "Grok was reauthenticated."
+    },
+    "error": {
+      "invalid_api_key": "Invalid API key. Please check your xAI API key.",
+      "oauth_failed": "Grok sign-in failed. You can retry OAuth, use an API key, or abort.",
+      "cannot_connect": "Could not reach the authentication server.",
+      "unknown": "Unknown error occurred"
+    },
+    "progress": {
+      "oauth_wait": "Sign in with Grok (uses Grok CLI OAuth client).\n\nOpen {url} and enter this code: **{user_code}**."
+    },
+    "step": {
+      "user": {
+        "title": "SpaceXAI",
+        "description": "One Home Assistant entry after Grok sign-in. OAuth (device code + PKCE) is the default. An xAI API key is only a fallback when OAuth entitlement is missing or you bill via console.x.ai. This is not Application Credentials.",
+        "data": {
+          "auth_method": "Grok authentication"
+        },
+        "data_description": {
+          "auth_method": "Primary: Sign in with Grok (Grok CLI public client). Fallback: API key for {api_url}."
+        }
+      },
+      "oauth": {
+        "title": "Sign in with Grok (uses Grok CLI OAuth client)"
+      },
+      "oauth_failed": {
+        "title": "Grok sign-in did not complete",
+        "description": "Device-code OAuth failed ({error}). Retry OAuth, use an xAI API key as a fallback, or abort.",
+        "data": {
+          "oauth_recovery": "Next step"
+        }
+      },
+      "api_key": {
+        "title": "xAI API key (fallback)",
+        "description": "Use a console.x.ai API key when OAuth entitlement is missing or you bill via the developer API at {api_url}. This is not the default.",
+        "data": {
+          "api_key": "xAI API Key"
+        }
+      },
+      "reauth_confirm": {
+        "title": "Reauthenticate Grok",
+        "description": "Grok tokens are missing or were rejected. Sign in with Grok again (OAuth), or use an API key fallback.",
+        "data": {
+          "auth_method": "Grok authentication"
+        }
+      }
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Voice Profile Management",
+        "description": "Manage voice profiles for SpaceXAI TTS.\n\nCurrent profiles:\n{current_profiles}",
+        "data": {
+          "action": "What would you like to do?"
+        },
+        "data_description": {
+          "action": "Choose an action to manage your voice profiles"
+        }
+      },
+      "add_profile": {
+        "title": "Add New Voice Profile",
+        "description": "Create a new voice profile. xAI provides 5 distinct voices: Eve (energetic female), Ara (warm female), Rex (professional male), Sal (neutral), and Leo (authoritative male).",
+        "data": {
+          "profile_name": "Profile Name",
+          "voice": "Voice",
+          "language": "Language",
+          "codec": "Audio Codec",
+          "sample_rate": "Sample Rate",
+          "bit_rate": "Bit Rate (MP3 only)"
+        },
+        "data_description": {
+          "profile_name": "A unique name for this voice profile (e.g., 'Morning News', 'Bedtime Stories')",
+          "voice": "xAI voice to use (Eve, Ara, Rex, Sal, or Leo)",
+          "language": "Language code for speech (e.g., en, es, fr, de, auto for auto-detect)",
+          "codec": "Audio codec: MP3 (compressed), WAV (uncompressed), PCM, or telephony formats (G.711)",
+          "sample_rate": "Audio sample rate in Hz. Higher = better quality, larger file",
+          "bit_rate": "Bit rate for MP3 compression. Higher = better quality, larger file (MP3 only)"
+        }
+      },
+      "modify_profile": {
+        "title": "Modify Voice Profile",
+        "description": "Select a voice profile to modify",
+        "data": {
+          "selected_profile": "Profile to Modify"
+        },
+        "data_description": {
+          "selected_profile": "Choose which voice profile you want to edit"
+        }
+      },
+      "edit_profile": {
+        "title": "Edit Voice Profile",
+        "description": "Modify the settings for this voice profile.",
+        "data": {
+          "profile_name": "Profile Name",
+          "voice": "Voice",
+          "language": "Language",
+          "codec": "Audio Codec",
+          "sample_rate": "Sample Rate",
+          "bit_rate": "Bit Rate (MP3 only)"
+        },
+        "data_description": {
+          "profile_name": "A unique name for this voice profile (e.g., 'Morning News', 'Bedtime Stories')",
+          "voice": "xAI voice to use (Eve, Ara, Rex, Sal, or Leo)",
+          "language": "Language code for speech (e.g., en, es, fr, de, auto for auto-detect)",
+          "codec": "Audio codec: MP3 (compressed), WAV (uncompressed), PCM, or telephony formats (G.711)",
+          "sample_rate": "Audio sample rate in Hz. Higher = better quality, larger file",
+          "bit_rate": "Bit rate for MP3 compression. Higher = better quality, larger file (MP3 only)"
+        }
+      },
+      "delete_profile": {
+        "title": "Delete Voice Profile",
+        "description": "Select a voice profile to delete",
+        "data": {
+          "profile_name": "Profile to Delete"
+        },
+        "data_description": {
+          "profile_name": "Choose which voice profile you want to remove permanently"
+        }
+      }
+    },
+    "error": {
+      "profile_exists": "A profile with this name already exists"
+    }
+  },
+  "selector": {
+    "grok_auth_method": {
+      "options": {
+        "oauth": "Sign in with Grok (uses Grok CLI OAuth client)",
+        "api_key": "xAI API key (console billing fallback)"
+      }
+    },
+    "oauth_recovery": {
+      "options": {
+        "retry_oauth": "Retry Grok OAuth",
+        "api_key": "Use an xAI API key",
+        "abort": "Abort"
+      }
+    }
+  },
+  "services": {
+    "get_voices": {
+      "name": "Get Voices",
+      "description": "Retrieve all available voices from xAI API"
+    }
+  }
+}

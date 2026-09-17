@@ -1,0 +1,16 @@
+{
+  "domain": "spacexai",
+  "name": "SpaceXAI",
+  "codeowners": ["@luxus"],
+  "config_flow": true,
+  "dependencies": ["conversation", "tts", "stt"],
+  "documentation": "https://github.com/luxus/HA-xAI-Custom-TTS",
+  "integration_type": "service",
+  "iot_class": "cloud_polling",
+  "issue_tracker": "https://github.com/luxus/HA-xAI-Custom-TTS/issues",
+  "loggers": ["spacexai", "ha_spacexai_auth"],
+  "requirements": [
+    "ha-spacexai-auth@git+https://github.com/luxus/ha-spacexai-auth.git@main"
+  ],
+  "version": "2.0.0"
+}

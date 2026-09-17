@@ -7,7 +7,7 @@ on:
     - cron: "0 0 * * *"
 
 jobs:
-  validate:
+  hacs:
     runs-on: "ubuntu-latest"
     steps:
       - uses: "actions/checkout@v4"
@@ -15,6 +15,11 @@ jobs:
         uses: "hacs/action@main"
         with:
           category: "integration"
-          ignore: brands
+          ignore: brands issues topics
+
+  hassfest:
+    runs-on: "ubuntu-latest"
+    steps:
+      - uses: "actions/checkout@v4"
       - name: Hassfest validation
         uses: "home-assistant/actions/hassfest@master"

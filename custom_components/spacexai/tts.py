@@ -1,4 +1,4 @@
-"""xAI TTS platform."""
+"""SpaceXAI TTS platform (xAI Voice paths, shared umbrella auth)."""
 
 from __future__ import annotations
 
@@ -12,6 +12,7 @@ import httpx
 from homeassistant.components.tts import TextToSpeechEntity, TtsAudioType, Voice
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.httpx_client import get_async_client
 
@@ -28,15 +29,19 @@ from .const import (
     DEFAULT_BIT_RATE,
     DEFAULT_CODEC,
     DEFAULT_LANGUAGE,
+    DEFAULT_NAME,
     DEFAULT_SAMPLE_RATE,
     DEFAULT_SPEED,
     DEFAULT_TEXT_NORMALIZATION,
     DEFAULT_VOICE,
     DOMAIN,
     SUPPORT_LANGUAGES,
+    TTS_ENTITY_ID,
+    TTS_ENTITY_NAME,
     TTS_MAX_RETRIES,
     TTS_REQUEST_TIMEOUT,
     TTS_RETRY_STATUS_CODES,
+    TTS_UNIQUE_ID,
     XAI_TTS_URL,
 )
 from .tts_request import (
@@ -61,41 +66,45 @@ async def async_setup_entry(
     config_entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    """Set up xAI TTS platform via config entry."""
+    """Set up SpaceXAI TTS platform via config entry."""
     if DOMAIN not in hass.data or config_entry.entry_id not in hass.data[DOMAIN]:
-        _LOGGER.error("xAI integration not loaded")
+        _LOGGER.error("SpaceXAI integration not loaded")
         return
 
-    entry_data = hass.data[DOMAIN][config_entry.entry_id]
-    api_key = entry_data["api_key"]
-
-    async_add_entities([XAITTSProvider(hass, api_key, config_entry)])
+    runtime = hass.data[DOMAIN][config_entry.entry_id]
+    async_add_entities([SpaceXAITTSEntity(hass, runtime, config_entry)])
 
 
-class XAITTSProvider(TextToSpeechEntity):
-    """xAI TTS provider."""
+class SpaceXAITTSEntity(TextToSpeechEntity):
+    """xAI TTS provider sharing the umbrella config entry's auth."""
 
-    def __init__(self, hass: HomeAssistant, api_key: str, config_entry: ConfigEntry) -> None:
-        """Initialize xAI TTS provider."""
+    _attr_has_entity_name = True
+    _attr_name = TTS_ENTITY_NAME
+
+    def __init__(self, hass: HomeAssistant, runtime: Any, config_entry: ConfigEntry) -> None:
+        """Initialize SpaceXAI TTS provider."""
         self.hass = hass
-        self._api_key = api_key
+        self._runtime = runtime
         self._config_entry = config_entry
         self._httpx_client = get_async_client(hass)
         self._available_voices = fallback_voices()
+        self.entity_id = TTS_ENTITY_ID
+        self._attr_unique_id = TTS_UNIQUE_ID
+        self._attr_device_info = dr.DeviceInfo(
+            identifiers={(DOMAIN, config_entry.entry_id)},
+            name=config_entry.title or DEFAULT_NAME,
+            manufacturer="xAI",
+            model="Grok",
+        )
 
     async def async_added_to_hass(self) -> None:
         """Cache built-in + custom voices for Assist voice pickers."""
-        self._available_voices = await fetch_all_voices(self._httpx_client, self._api_key)
-
-    @property
-    def name(self) -> str:
-        """Return the name of the entity (display name in UI)."""
-        return "xAI Custom TTS"
-
-    @property
-    def unique_id(self) -> str:
-        """Return a unique ID for this TTS entity."""
-        return f"{DOMAIN}_tts"
+        await super().async_added_to_hass()
+        try:
+            headers = await self._runtime.async_authorization_headers()
+            self._available_voices = await fetch_all_voices(self._httpx_client, headers)
+        except Exception:  # noqa: BLE001
+            _LOGGER.debug("Voice list refresh failed; using fallback", exc_info=True)
 
     @property
     def default_language(self) -> str:
@@ -265,10 +274,14 @@ class XAITTSProvider(TextToSpeechEntity):
             replace=replace,
         )
 
-        headers = {
-            "Authorization": f"Bearer {self._api_key}",
-            "Content-Type": "application/json",
-        }
+        try:
+            headers = {
+                **await self._runtime.async_authorization_headers(),
+                "Content-Type": "application/json",
+            }
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.error("SpaceXAI auth headers failed: %s", err)
+            return None
 
         try:
             with async_timeout.timeout(TTS_REQUEST_TIMEOUT * TTS_MAX_RETRIES + 8):

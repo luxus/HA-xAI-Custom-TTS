@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Mapping
 from typing import Any, Protocol
 
 from .const import (
@@ -109,10 +110,13 @@ def format_voice_label(voice_id: str, info: dict[str, Any]) -> str:
 
 
 async def fetch_all_voices(
-    client: _AsyncHttpClient, api_key: str
+    client: _AsyncHttpClient, headers: Mapping[str, str]
 ) -> dict[str, dict[str, Any]]:
-    """Fetch built-in voices, then custom voices. Fall back if the built-in list fails."""
-    headers = {"Authorization": f"Bearer {api_key}"}
+    """Fetch built-in voices, then custom voices. Fall back if the built-in list fails.
+
+    ``headers`` must already be ``Authorization: Bearer …`` from
+    ``runtime.async_authorization_headers`` / ``authorization_headers_for_entry``.
+    """
     voices: dict[str, dict[str, Any]] = {}
 
     try:

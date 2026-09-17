@@ -65,7 +65,7 @@
       },
       "conversation": {
         "title": "Conversation (Grok)",
-        "description": "Assist LLM tools, live search, and model pickers. Models are loaded live from GET https://api.x.ai/v1/models.",
+        "description": "Assist LLM tools, live search, and model pickers. Models are loaded live from the xAI models API.",
         "data": {
           "prompt": "Instructions",
           "chat_model": "Primary chat model",

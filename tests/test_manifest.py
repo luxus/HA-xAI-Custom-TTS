@@ -3,12 +3,19 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
+from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
-MANIFEST = json.loads((ROOT / "custom_components" / "spacexai" / "manifest.json").read_text())
-STRINGS = json.loads((ROOT / "custom_components" / "spacexai" / "strings.json").read_text())
+INTEGRATION = ROOT / "custom_components" / "spacexai"
+MANIFEST = json.loads((INTEGRATION / "manifest.json").read_text())
+STRINGS = json.loads((INTEGRATION / "strings.json").read_text())
+EN = json.loads((INTEGRATION / "translations" / "en.json").read_text())
 HACS = json.loads((ROOT / "hacs.json").read_text())
+
+# hassfest TRANSLATIONS: reject http(s) and www. in string values.
+_BARE_URL = re.compile(r"https?://|www\.", re.IGNORECASE)
 
 
 def test_manifest_requires_ha_spacexai_auth() -> None:
@@ -35,6 +42,33 @@ def test_manifest_domain_and_platforms() -> None:
 def test_manifest_points_at_ha_spacexai_repo() -> None:
     assert MANIFEST["documentation"] == "https://github.com/luxus/ha-spacexai"
     assert MANIFEST["issue_tracker"] == "https://github.com/luxus/ha-spacexai/issues"
+
+
+def test_manifest_keys_sorted_domain_name_then_alpha() -> None:
+    keys = list(MANIFEST)
+    assert keys[:2] == ["domain", "name"]
+    assert keys[2:] == sorted(keys[2:])
+
+
+def _assert_no_bare_urls(value: Any, path: str) -> None:
+    if isinstance(value, dict):
+        for key, nested in value.items():
+            _assert_no_bare_urls(nested, f"{path}.{key}")
+        return
+    if isinstance(value, list):
+        for index, nested in enumerate(value):
+            _assert_no_bare_urls(nested, f"{path}[{index}]")
+        return
+    if isinstance(value, str):
+        assert _BARE_URL.search(value) is None, f"bare URL in {path}: {value!r}"
+
+
+def test_strings_and_en_have_no_bare_urls() -> None:
+    _assert_no_bare_urls(STRINGS, "strings.json")
+    _assert_no_bare_urls(EN, "translations/en.json")
+    description = STRINGS["options"]["step"]["conversation"]["description"]
+    assert "xAI models API" in description
+    assert description == EN["options"]["step"]["conversation"]["description"]
 
 
 def test_hacs_keeps_repo_layout() -> None:

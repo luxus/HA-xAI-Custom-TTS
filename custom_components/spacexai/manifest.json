@@ -1,9 +1,9 @@
 {
   "domain": "spacexai",
   "name": "SpaceXAI",
+  "after_dependencies": ["assist_pipeline", "intent"],
   "codeowners": ["@luxus"],
   "config_flow": true,
-  "after_dependencies": ["assist_pipeline", "intent"],
   "dependencies": ["conversation", "tts", "stt"],
   "documentation": "https://github.com/luxus/ha-spacexai",
   "integration_type": "service",

@@ -54,18 +54,55 @@
   "options": {
     "step": {
       "init": {
-        "title": "Voice Profile Management",
-        "description": "Manage voice profiles for SpaceXAI TTS.\n\nCurrent profiles:\n{current_profiles}",
+        "title": "SpaceXAI options",
+        "description": "Conversation: {conversation_summary}\n\nTTS voice profiles:\n{current_profiles}",
         "data": {
           "action": "What would you like to do?"
         },
         "data_description": {
-          "action": "Choose an action to manage your voice profiles"
+          "action": "Configure Assist conversation (tools, models, live search) or TTS voice profiles"
+        }
+      },
+      "conversation": {
+        "title": "Conversation (Grok)",
+        "description": "Assist LLM tools, live search, and model pickers. Models are loaded live from GET https://api.x.ai/v1/models.",
+        "data": {
+          "prompt": "Instructions",
+          "chat_model": "Primary chat model",
+          "fast_model": "Fast model (auto-routing)",
+          "fallback_model": "Fallback model",
+          "max_tokens": "Maximum tokens to return in response",
+          "temperature": "Temperature",
+          "top_p": "Top P",
+          "reasoning_effort": "Reasoning Effort",
+          "llm_hass_api": "LLM HASS API (Assist control)",
+          "recommended": "Use recommended sampling settings",
+          "live_search": "Live Search (Web / X)",
+          "show_citations": "Show search citations",
+          "send_user_name": "Include username in messages",
+          "location_context": "Home location context",
+          "interaction_mode": "Interaction mode",
+          "voice_optimized": "Voice-optimized replies",
+          "auto_model_routing": "Auto-route simple requests to fast model",
+          "home_context": "Inject home context (time, presence, weather)",
+          "budget_warn_usd": "Budget warning threshold (USD, 0=off)"
+        },
+        "data_description": {
+          "prompt": "Instruct how Grok should respond. This can be a template.",
+          "reasoning_effort": "Controls reasoning effort for Grok reasoning models (low/medium/high).",
+          "live_search": "xAI server-side Web and/or X search. Works with Assist tools (two-pass: search brief → tool loop).",
+          "interaction_mode": "tools = direct HA tool calling; pipeline = try HA Assist first; chat_only = no device control.",
+          "location_context": "e.g. Calgary, Alberta, Canada — sent to live search for 'near me' / local queries.",
+          "fast_model": "Used when auto-routing detects a short/simple command. List is loaded live from xAI.",
+          "fallback_model": "Tried automatically if the primary model errors. List is loaded live from xAI.",
+          "chat_model": "Main conversation model from GET /v1/models (image/voice models filtered out). You can type a model id.",
+          "llm_hass_api": "Select Assist so Grok can call HassTurnOn / HassTurnOff and control exposed lights.",
+          "budget_warn_usd": "Fires spacexai_budget_warning when estimated spend crosses this USD value."
         }
       },
       "add_profile": {
         "title": "Add New Voice Profile",
-        "description": "Create a new voice profile. xAI provides 5 distinct voices: Eve (energetic female), Ara (warm female), Rex (professional male), Sal (neutral), and Leo (authoritative male).",
+        "description": "Create a new voice profile. xAI provides 25+ voices (Eve, Ara, Rex, Luna, Helios, Zagan, …) listed live from GET /v1/tts/voices.",
         "data": {
           "profile_name": "Profile Name",
           "voice": "Voice",
@@ -76,7 +113,7 @@
         },
         "data_description": {
           "profile_name": "A unique name for this voice profile (e.g., 'Morning News', 'Bedtime Stories')",
-          "voice": "xAI voice to use (Eve, Ara, Rex, Sal, or Leo)",
+          "voice": "xAI voice (Eve, Ara, Rex, Luna, … or a custom voice_id)",
           "language": "Language code for speech (e.g., en, es, fr, de, auto for auto-detect)",
           "codec": "Audio codec: MP3 (compressed), WAV (uncompressed), PCM, or telephony formats (G.711)",
           "sample_rate": "Audio sample rate in Hz. Higher = better quality, larger file",
@@ -106,7 +143,7 @@
         },
         "data_description": {
           "profile_name": "A unique name for this voice profile (e.g., 'Morning News', 'Bedtime Stories')",
-          "voice": "xAI voice to use (Eve, Ara, Rex, Sal, or Leo)",
+          "voice": "xAI voice (Eve, Ara, Rex, Luna, … or a custom voice_id)",
           "language": "Language code for speech (e.g., en, es, fr, de, auto for auto-detect)",
           "codec": "Audio codec: MP3 (compressed), WAV (uncompressed), PCM, or telephony formats (G.711)",
           "sample_rate": "Audio sample rate in Hz. Higher = better quality, larger file",
@@ -125,7 +162,9 @@
       }
     },
     "error": {
-      "profile_exists": "A profile with this name already exists"
+      "profile_exists": "A profile with this name already exists",
+      "model_not_supported": "This model is not supported, please select a different model",
+      "llm_api_not_found": "Could not match that LLM HASS API. Pick Assist from the list, or No control for chat-only."
     }
   },
   "selector": {
@@ -147,6 +186,43 @@
     "get_voices": {
       "name": "Get Voices",
       "description": "Retrieve all available voices from xAI API"
+    },
+    "generate_image": {
+      "name": "Generate image",
+      "description": "Turns a prompt into an image"
+    },
+    "generate_content": {
+      "name": "Generate content",
+      "description": "Sends a conversational query to Grok including any attached image files"
+    },
+    "ask": {
+      "name": "Ask (stateless)",
+      "description": "One-shot stateless Grok query with optional live search"
+    },
+    "photo_analysis": {
+      "name": "Photo analysis",
+      "description": "Analyze images with Grok Vision"
+    },
+    "query_image": {
+      "name": "Query image",
+      "description": "Legacy alias for photo analysis"
+    },
+    "clear_memory": {
+      "name": "Clear memory",
+      "description": "Reload integration to reset agent memory"
+    },
+    "reset_stats": {
+      "name": "Reset usage stats",
+      "description": "Zero token/cost sensors"
+    },
+    "home_briefing": {
+      "name": "Home briefing",
+      "description": "Summarize current home state with Grok"
+    }
+  },
+  "exceptions": {
+    "invalid_config_entry": {
+      "message": "Invalid config entry provided. Got {config_entry}"
     }
   }
 }

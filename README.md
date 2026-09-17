@@ -70,8 +70,9 @@ Assist pipeline
         │         ▼
         │   conversation.spacexai_grok
         │         Bearer from ensure_fresh
-        │         POST https://api.x.ai/v1/responses
-        │         real Grok prose (Assist tools are a stub)
+        │         mode=tools → POST /v1/chat/completions + Assist LLM tools
+        │         live search → POST /v1/responses (web_search / x_search)
+        │         real HassTurnOn / HassTurnOff (exposed entities only)
         │
         └─ TTS  tts.spacexai_tts
                   Bearer from ensure_fresh
@@ -144,9 +145,78 @@ Until that handoff ships in `jev_assist`, set the Assist pipeline conversation a
 
 ## Conversation (Grok)
 
-The **Grok** conversation entity (`conversation.spacexai_grok`) calls `https://api.x.ai/v1/responses` with the same `Authorization: Bearer …` headers used for TTS and STT (`ha_spacexai_auth.authorization_headers`). It returns Grok's assistant text as Assist speech. Home Assistant LLM tool-calling is stubbed: Grok will talk about devices but will not execute services (Jev's fast path covers lights).
+The **Grok** conversation entity (`conversation.spacexai_grok`) is a full Assist LLM agent, ported from the proven [`braytonstafford/grok_conversation`](https://github.com/braytonstafford/grok_conversation) patterns, still authenticated with `ha_spacexai_auth` (OAuth device code + `ensure_fresh`, or API-key fallback). It does **not** use Application Credentials.
 
-Default model: `grok-4`.
+| Capability | How it works |
+| --- | --- |
+| **Assist LLM HASS API tools** | Real device control. Grok calls HA tools (`HassTurnOn`, `HassTurnOff`, timers, …). Tool JSON schemas are sanitized for xAI (anyOf/oneOf merged). Tool results are passed through — Grok must not invent a successful action. |
+| **Live Search** | `off` / `web` / `x` / `full`. Responses API server tools `web_search` / `x_search`. Citations appended on text chat; skipped on satellite/voice. Two-pass when Assist tools are on: search brief → tool loop. |
+| **Interaction modes** | `tools` (default) · `pipeline` (built-in HA intent first, then Grok) · `chat_only` (no device control) |
+| **Model pickers** | Chat / fast / fallback from live `GET https://api.x.ai/v1/models` (image/voice models filtered). Auto-routing sends short commands to the fast model. |
+| **Services** | `spacexai.ask`, `photo_analysis`, `home_briefing`, `generate_image`, `generate_content` (+ `query_image`, `clear_memory`, `reset_stats`, `get_voices`) |
+| **Voice probe** | Setup probes `/v1/tts/voices` (then a tiny TTS POST). Conversation still loads if Voice is denied. |
+| **Usage sensors** | Diagnostic token/cost counters on the SpaceXAI device |
+
+Default chat model: `grok-4.3-latest` (overridable from the live list). Default LLM HASS API: **Assist**.
+
+### How Assist tools work (lights end-to-end)
+
+1. **Expose the light** to Assist: *Settings → Voice assistants → Expose* (or entity *Settings → Voice assistants* toggle). Unexposed entities are invisible to the LLM API.
+2. **One SpaceXAI entry** (OAuth or API key). Confirm `conversation.spacexai_grok` exists.
+3. **Configure → Conversation:**
+   - **LLM HASS API** = **Assist** (not “No control”)
+   - **Interaction mode** = **Tool Control** (`tools`)
+   - Optional: Live Search `web`/`x`/`full`
+4. **Assist pipeline:** Conversation agent = **Grok** (`conversation.spacexai_grok`). TTS/STT can stay `tts.spacexai_tts` / `stt.spacexai_stt`.
+5. Say or type: **“Turn on the kitchen light.”**
+6. What happens:
+   1. Mode `tools` skips the built-in intent pipeline.
+   2. `chat_log.async_provide_llm_data` attaches the Assist LLM API tools for exposed entities.
+   3. Grok is called on `POST https://api.x.ai/v1/chat/completions` with those function tools.
+   4. The model returns a `HassTurnOn` (or similar) tool call. SpaceXAI executes it via `ToolInput` / `llm_api.async_call_tool` — **a real HA service call**, not a stub.
+   5. The raw tool payload is sent back to Grok. Only after a successful result may Grok say the light is on.
+7. Confirm in **Developer Tools → States** that `light.kitchen` (or whatever you exposed) is `on`, and in HA logs a debug line `Tool HassTurnOn result: …`.
+
+`chat_only` never sends HA tools. `pipeline` tries `conversation.home_assistant` first and only falls through to Grok tools if the built-in agent produces a “sorry / not aware” style reply.
+
+Live Search in `tools` mode uses an allow-list (news, scores, weather, “near me”, …) so “turn on the lights” does not waste a search pass. In `pipeline` mode a deny-list is used instead. When both search and tools apply, the search brief is injected into the tool-loop system prompt (two-pass).
+
+---
+
+## Configuration options
+
+Open **Settings → Devices & services → SpaceXAI → Configure**.
+
+| Option | Notes |
+| --- | --- |
+| LLM HASS API | Assist control (not “No control”) |
+| Interaction mode | `tools` / `pipeline` / `chat_only` |
+| Chat / fast / fallback model | Live list from xAI `/v1/models` |
+| Live Search | off / web / x / full |
+| Show citations | Text chat only (not spoken Assist) |
+| Voice-optimized replies | Short spoken answers |
+| Auto-route to fast model | Short commands |
+| Home context | Time, presence, weather |
+| Location context | For “near me” live search |
+| TTS voice profiles | Existing profile manager (unchanged) |
+
+---
+
+## Services
+
+All take a `config_entry` selector for the SpaceXAI entry.
+
+| Service | Purpose |
+| --- | --- |
+| `spacexai.ask` | Stateless instructions + input_data, optional live search |
+| `spacexai.photo_analysis` | Vision over paths or `http(s)` URLs |
+| `spacexai.home_briefing` | Snapshot HA entities → spoken status |
+| `spacexai.generate_image` | Grok Imagine (`/v1/images/generations`) |
+| `spacexai.generate_content` | Prompt (+ optional local image files) |
+| `spacexai.query_image` | Legacy alias for photo analysis |
+| `spacexai.clear_memory` | Reload the entry |
+| `spacexai.reset_stats` | Zero usage sensors |
+| `spacexai.get_voices` | List TTS voices |
 
 ---
 
@@ -172,7 +242,7 @@ Default TTS entity ID is **`tts.spacexai_tts`**. Voice profiles, codecs, speed, 
 
 **Settings → Devices & services → SpaceXAI → Configure**
 
-Built-in voices include Eve, Ara, Rex, Sal, Leo plus extra IDs from `GET /v1/tts/voices`. Custom voices from `GET /v1/custom-voices` appear when the team has them enabled. Codecs: MP3, WAV, PCM, G.711 μ-law/A-law.
+Built-in voices include Eve, Ara, Rex, Sal, Leo plus 20 more catalog IDs (Luna, Helios, Zagan, … — 25+ total) from `GET /v1/tts/voices`. Custom voices from `GET /v1/custom-voices` appear when the team has them enabled. Codecs: MP3, WAV, PCM, G.711 μ-law/A-law.
 
 ```yaml
 service: tts.speak
@@ -223,7 +293,7 @@ pip install -r requirements-dev.txt
 pytest
 ```
 
-No live xAI keys are required. Tests cover `TokenSet` config-entry roundtrip, `ensure_entry_tokens` / `ensure_fresh`, domain/manifest requirements, Grok conversation against mocked HTTP, TTS payload/voice parsers, and STT multipart (`file` last, language map, transcript extract).
+No live xAI keys are required. Tests cover `TokenSet` config-entry roundtrip, `ensure_entry_tokens` / `ensure_fresh`, domain/manifest requirements, Grok conversation against mocked HTTP, **Assist tool routing / interaction modes with mocks**, TTS payload/voice parsers, STT multipart (`file` last, language map, transcript extract), usage sensors, and the Voice API probe.
 
 ---
 
@@ -236,6 +306,12 @@ No live xAI keys are required. Tests cover `TokenSet` config-entry roundtrip, `e
 ---
 
 ## Changelog
+
+### Version 2.1.0
+
+- Conversation feature parity with `grok_conversation`: Assist LLM HASS API tools (real device control), live search + citations, interaction modes (`tools` / `pipeline` / `chat_only`), live model pickers, ask / photo_analysis / home_briefing / image+content services, Voice API probe, usage sensors
+- TTS fallback catalog expanded to 25+ voices; OAuth via `ha_spacexai_auth` unchanged
+- Stable entity IDs: `conversation.spacexai_grok`, `tts.spacexai_tts`, `stt.spacexai_stt`
 
 ### Version 2.0.0
 

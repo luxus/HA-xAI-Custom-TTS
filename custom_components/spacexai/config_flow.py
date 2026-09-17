@@ -38,7 +38,12 @@ from .const import (
     CODEC_NAMES,
     CONF_API_KEY,
     CONF_AUTH_METHOD,
+    CONF_CHAT_MODEL,
+    CONF_FALLBACK_MODEL,
+    CONF_FAST_MODEL,
+    CONF_LLM_HASS_API,
     CONF_OAUTH_RECOVERY,
+    CONF_RECOMMENDED,
     CONFIG_VERSION,
     DEFAULT_BIT_RATE,
     DEFAULT_CODEC,
@@ -51,10 +56,21 @@ from .const import (
     OAUTH_RECOVERY_ABORT,
     OAUTH_RECOVERY_API_KEY,
     OAUTH_RECOVERY_RETRY,
+    RECOMMENDED_CHAT_MODEL,
+    RECOMMENDED_FALLBACK_MODEL,
+    RECOMMENDED_FAST_MODEL,
+    RECOMMENDED_OPTIONS,
     SUPPORT_CODECS,
     SUPPORT_LANGUAGES,
     XAI_VOICES_URL,
 )
+from .grok import async_list_chat_models
+from .options_schema import (
+    conversation_option_schema,
+    resolve_llm_hass_api,
+    validate_model_picks,
+)
+from .api_helpers import is_chat_model_id
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -355,7 +371,7 @@ class SpaceXAIConfigFlow(ConfigFlow, domain=DOMAIN):
         return self.async_create_entry(
             title=DEFAULT_NAME,
             data=data,
-            options={"voice_profiles": {}},
+            options={**RECOMMENDED_OPTIONS, "voice_profiles": {}},
         )
 
     async def async_step_reauth(self, entry_data: dict[str, Any]) -> ConfigFlowResult:
@@ -379,13 +395,15 @@ class SpaceXAIConfigFlow(ConfigFlow, domain=DOMAIN):
 
 
 class SpaceXAIOptionsFlow(OptionsFlow):
-    """Handle options flow for TTS voice profiles."""
+    """Handle options flow for conversation settings and TTS voice profiles."""
 
     def __init__(self, config_entry: ConfigEntry | None = None) -> None:
         """Store the entry for HA versions that do not inject ``config_entry``."""
         super().__init__()
         if config_entry is not None:
             self._config_entry = config_entry
+        self.last_rendered_recommended = False
+        self._chat_models: list[str] | None = None
 
     def _entry(self) -> ConfigEntry:
         stored = getattr(self, "_config_entry", None)
@@ -393,9 +411,42 @@ class SpaceXAIOptionsFlow(OptionsFlow):
             return stored
         return self.config_entry
 
+    async def _async_get_chat_models(self) -> list[str]:
+        if self._chat_models is not None:
+            return self._chat_models
+        from homeassistant.helpers.httpx_client import get_async_client
+
+        entry = self._entry()
+        try:
+            headers = authorization_headers_for_entry(dict(entry.data))
+            models = await async_list_chat_models(get_async_client(self.hass), headers)
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.warning("Could not list xAI models for options: %s", err)
+            from .api_helpers import fallback_chat_models
+
+            models = fallback_chat_models()
+        options = entry.options
+        for key, default in (
+            (CONF_CHAT_MODEL, RECOMMENDED_CHAT_MODEL),
+            (CONF_FAST_MODEL, RECOMMENDED_FAST_MODEL),
+            (CONF_FALLBACK_MODEL, RECOMMENDED_FALLBACK_MODEL),
+        ):
+            current = options.get(key, default)
+            if (
+                isinstance(current, str)
+                and current
+                and current not in models
+                and is_chat_model_id(current)
+            ):
+                models = [current, *models]
+        self._chat_models = models
+        return models
+
     async def async_step_init(self, user_input: dict[str, Any] | None = None):
-        """Manage voice profiles."""
+        """Manage conversation settings and voice profiles."""
         if user_input is not None:
+            if user_input.get("action") == "conversation":
+                return await self.async_step_conversation()
             if user_input.get("action") == "add_profile":
                 return await self.async_step_add_profile()
             if user_input.get("action") == "modify_profile":
@@ -403,10 +454,14 @@ class SpaceXAIOptionsFlow(OptionsFlow):
             if user_input.get("action") == "delete_profile":
                 return await self.async_step_delete_profile()
             if user_input.get("action") == "done":
-                return self.async_create_entry(title="", data=self._entry().options)
+                return self.async_create_entry(title="", data=dict(self._entry().options))
 
         current_profiles = self._entry().options.get("voice_profiles", {})
         profile_list = list(current_profiles.keys()) if current_profiles else ["No profiles configured"]
+        options = self._entry().options
+        mode = options.get("interaction_mode", "tools")
+        search = options.get("live_search", "off")
+        chat_model = options.get(CONF_CHAT_MODEL, RECOMMENDED_CHAT_MODEL)
 
         return self.async_show_form(
             step_id="init",
@@ -414,6 +469,7 @@ class SpaceXAIOptionsFlow(OptionsFlow):
                 {
                     vol.Optional("action"): vol.In(
                         {
+                            "conversation": "Conversation (models, tools, live search)",
                             "add_profile": "Add New Voice Profile",
                             "modify_profile": "Modify Existing Profile",
                             "delete_profile": "Delete Voice Profile",
@@ -423,8 +479,45 @@ class SpaceXAIOptionsFlow(OptionsFlow):
                 }
             ),
             description_placeholders={
-                "current_profiles": "\n".join(f"• {profile}" for profile in profile_list)
+                "current_profiles": "\n".join(f"• {profile}" for profile in profile_list),
+                "conversation_summary": (
+                    f"model={chat_model}, mode={mode}, live_search={search}"
+                ),
             },
+        )
+
+    async def async_step_conversation(self, user_input: dict[str, Any] | None = None):
+        """Conversation / Assist options (ported from grok_conversation)."""
+        entry = self._entry()
+        options: dict[str, Any] | Any = entry.options
+        errors: dict[str, str] = {}
+        chat_models = await self._async_get_chat_models()
+        self.last_rendered_recommended = bool(options.get(CONF_RECOMMENDED, True))
+
+        if user_input is not None:
+            if user_input.get(CONF_RECOMMENDED) == self.last_rendered_recommended:
+                llm_hass_api = user_input.get(CONF_LLM_HASS_API)
+                resolved, llm_error = resolve_llm_hass_api(self.hass, llm_hass_api)
+                if llm_error:
+                    errors[CONF_LLM_HASS_API] = llm_error
+                elif resolved:
+                    user_input[CONF_LLM_HASS_API] = resolved
+                else:
+                    user_input.pop(CONF_LLM_HASS_API, None)
+                errors.update(validate_model_picks(user_input))
+                if not errors:
+                    merged = dict(entry.options)
+                    merged.update(user_input)
+                    return self.async_create_entry(title="", data=merged)
+            else:
+                self.last_rendered_recommended = user_input[CONF_RECOMMENDED]
+                options = {**dict(options), **user_input, CONF_RECOMMENDED: user_input[CONF_RECOMMENDED]}
+
+        schema = conversation_option_schema(self.hass, options, chat_models=chat_models)
+        return self.async_show_form(
+            step_id="conversation",
+            data_schema=vol.Schema(schema),
+            errors=errors,
         )
 
     def _voice_form_schema(

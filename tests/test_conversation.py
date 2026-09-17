@@ -20,14 +20,25 @@ from spacexai.grok import (
     messages_from_chat_log,
     responses_payload,
 )
+from spacexai import fill_missing_options
 
 from .fakes import FakeHttpxClient, FakeHttpxResponse
 
 
-def test_platforms_load_conversation_tts_and_stt() -> None:
-    assert PLATFORMS == ("conversation", "tts", "stt")
+def test_platforms_load_conversation_tts_stt_and_sensor() -> None:
+    assert PLATFORMS == ("conversation", "tts", "stt", "sensor")
     assert CONVERSATION_ENTITY_NAME == "Grok"
     assert GROK_CONVERSATION_ENTITY_ID == "conversation.spacexai_grok"
+
+
+def test_fill_missing_options_defaults_assist_tools() -> None:
+    merged, changed = fill_missing_options({"voice_profiles": {}})
+    assert changed is True
+    assert merged["llm_hass_api"] == ["assist"]
+    assert merged["interaction_mode"] == "tools"
+    assert merged["live_search"] == "off"
+    again, changed_again = fill_missing_options(merged)
+    assert changed_again is False
 
 
 def test_extract_responses_api_prose() -> None:

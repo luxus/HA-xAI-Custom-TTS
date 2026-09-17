@@ -20,15 +20,15 @@ from .auth import (
     entry_auth_method,
 )
 from .const import (
-    ATTR_SEARCH_TEXT,
     AUTH_OAUTH,
     CONF_API_KEY,
     DOMAIN,
     PLATFORMS,
-    SERVICE_GET_VOICES,
+    RECOMMENDED_OPTIONS,
 )
 from .migrate import migrate_entry_data
-from .voices import fallback_voices
+from .usage import UsageTracker
+from .voice_probe import async_validate_voice_access
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -44,12 +44,29 @@ else:
     OAUTH_TRANSPORT_ERRORS = (TimeoutError, ConnectionError, OSError)
 
 
+def fill_missing_options(options: Mapping[str, Any] | None) -> tuple[dict[str, Any], bool]:
+    """Fill recommended conversation keys without clobbering existing options."""
+    current = dict(options or {})
+    changed = False
+    for key, value in RECOMMENDED_OPTIONS.items():
+        if key not in current:
+            current[key] = list(value) if isinstance(value, list) else value
+            changed = True
+    if "voice_profiles" not in current:
+        current["voice_profiles"] = {}
+        changed = True
+    return current, changed
+
+
 @dataclass
 class SpaceXAIRuntime:
     """Per-entry runtime: shared auth for conversation + TTS + STT."""
 
     hass: Any
     entry: Any
+    usage: UsageTracker | None = None
+    voice_ok: bool = True
+    voice_detail: str = ""
     _lock: asyncio.Lock = field(default_factory=asyncio.Lock)
 
     async def async_authorization_headers(self) -> dict[str, str]:
@@ -62,18 +79,46 @@ class SpaceXAIRuntime:
 async def async_setup_entry(hass: Any, entry: Any) -> bool:
     """Set up SpaceXAI from a config entry."""
     from homeassistant.exceptions import ConfigEntryAuthFailed
+    from homeassistant.helpers.httpx_client import get_async_client
 
     if entry_auth_method(entry.data) == AUTH_OAUTH:
         await _async_refresh_if_oauth(hass, entry)
     elif not entry.data.get(CONF_API_KEY):
         raise ConfigEntryAuthFailed("API key missing")
 
-    runtime = SpaceXAIRuntime(hass=hass, entry=entry)
+    merged, options_changed = fill_missing_options(entry.options)
+    if options_changed:
+        hass.config_entries.async_update_entry(entry, options=merged)
+
+    tracker = UsageTracker(hass, entry.entry_id)
+    await tracker.async_load()
+
+    runtime = SpaceXAIRuntime(hass=hass, entry=entry, usage=tracker)
     hass.data.setdefault(DOMAIN, {})
     hass.data[DOMAIN][entry.entry_id] = runtime
 
+    try:
+        headers = await runtime.async_authorization_headers()
+        voice_ok, voice_detail = await async_validate_voice_access(
+            get_async_client(hass), headers
+        )
+        runtime.voice_ok = voice_ok
+        runtime.voice_detail = voice_detail
+        if voice_ok:
+            _LOGGER.info("xAI Voice API OK: %s", voice_detail)
+        else:
+            _LOGGER.warning(
+                "xAI Voice API not available for this credential — TTS/STT engines "
+                "may fail until voice is enabled. Detail: %s",
+                voice_detail,
+            )
+    except Exception as err:  # noqa: BLE001
+        _LOGGER.debug("Voice API probe skipped: %s", err)
+
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
-    await _async_register_services(hass)
+    from .services import async_register_services
+
+    await async_register_services(hass)
     entry.async_on_unload(entry.add_update_listener(_async_reload))
     return True
 
@@ -83,8 +128,10 @@ async def async_unload_entry(hass: Any, entry: Any) -> bool:
     unloaded = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     if unloaded:
         hass.data.get(DOMAIN, {}).pop(entry.entry_id, None)
-        if not hass.data.get(DOMAIN) and hass.services.has_service(DOMAIN, SERVICE_GET_VOICES):
-            hass.services.async_remove(DOMAIN, SERVICE_GET_VOICES)
+        if not hass.data.get(DOMAIN):
+            from .services import async_unregister_services
+
+            async_unregister_services(hass)
     return unloaded
 
 
@@ -125,44 +172,6 @@ async def _async_refresh_if_oauth(hass: Any, entry: Any) -> None:
     if updates:
         hass.config_entries.async_update_entry(entry, data={**entry.data, **updates})
         _LOGGER.debug("Persisted Grok token refresh")
-
-
-async def _async_register_services(hass: Any) -> None:
-    """Register domain services once."""
-    if hass.services.has_service(DOMAIN, SERVICE_GET_VOICES):
-        return
-
-    from homeassistant.core import ServiceCall, ServiceResponse, SupportsResponse
-
-    async def get_voices_service(call: ServiceCall) -> ServiceResponse:
-        search_text = str(call.data.get(ATTR_SEARCH_TEXT, "")).lower().strip()
-        voices_list = []
-        for voice_id, voice_info in fallback_voices().items():
-            name = str(voice_info.get("name") or voice_id)
-            kind = str(voice_info.get("type") or "")
-            tone = str(voice_info.get("tone") or "")
-            description = str(voice_info.get("description") or "")
-            voice_data = {
-                "voice_id": voice_id,
-                "name": name,
-                "type": kind,
-                "tone": tone,
-                "description": description,
-                "source": voice_info.get("source", "builtin"),
-            }
-            if search_text:
-                searchable_text = f"{name.lower()} {kind.lower()} {tone.lower()} {description.lower()}"
-                if search_text not in searchable_text:
-                    continue
-            voices_list.append(voice_data)
-        return {"voices": voices_list}
-
-    hass.services.async_register(
-        DOMAIN,
-        SERVICE_GET_VOICES,
-        get_voices_service,
-        supports_response=SupportsResponse.ONLY,
-    )
 
 
 def grok_authorization_headers(entry_data: Mapping[str, Any]) -> dict[str, str]:

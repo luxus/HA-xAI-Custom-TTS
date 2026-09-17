@@ -1,4 +1,4 @@
-# HA-xAI-Custom-TTS
+# SpaceXAI (Home Assistant umbrella)
 
 <p align="center">
   <img src="https://pbs.twimg.com/profile_images/1769430779845611520/lIgjSJGU_400x400.jpg" alt="xAI Logo" width="120">
@@ -7,51 +7,107 @@
 [![hacs_badge](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://github.com/custom-components/hacs)
 [![GitHub release](https://img.shields.io/github/release/luxus/HA-xAI-Custom-TTS.svg)](https://github.com/luxus/HA-xAI-Custom-TTS/releases/)
 
-A xAI (Grok) TTS integration for Home Assistant that provides voice synthesis using xAI's Text-to-Speech API and integrates with Home Assistant's native TTS platform.
+**SpaceXAI** is the Home Assistant umbrella for Grok: **one config entry after OAuth**, then platforms load under that entry.
 
-This custom component provides:
-1. **Get Voices Service** - Retrieve available xAI voices (Eve, Ara, Rex, Sal, Leo)
-2. **Native TTS Platform** - Full integration with Home Assistant's TTS system
-3. **Voice Profile Management** - Create, modify, and delete named voice profiles with full audio format control
-4. **Flexible Output Formats** - MP3, WAV, PCM, and telephony codecs (G.711 μ-law/A-law) with configurable sample rates
+| Layer | Repo | Role |
+| --- | --- | --- |
+| 1. Auth library | [`luxus/ha-spacexai-auth`](https://github.com/luxus/ha-spacexai-auth) | Device-code + PKCE, `ensure_fresh`, `TokenSet` entry keys. No HA domain. |
+| 2. **This integration** | `luxus/HA-xAI-Custom-TTS` (HACS name **SpaceXAI**) | Domain **`spacexai`**. Conversation agent **Grok** + existing **TTS**. STT later. |
+| 3. Router | [`luxus/ha-conversation-jev`](https://github.com/luxus/ha-conversation-jev) (`jev_assist`) | Thin classifier / light fast-path only. On `grok` routes it should hand off to **this** conversation agent. |
 
-### Why use this instead of other TTS integrations?
-- 🎙️ **Simple & Clean** – xAI provides 5 high-quality voices without complex parameter tuning
-- 🌍 **21 Languages** – Natural pronunciation with auto-detection support
-- 🔧 **Voice Profiles** – Define multiple voice configurations with codec, sample rate, and bit rate settings
-- 📞 **Telephony Ready** – Native G.711 codec support for SIP/PBX integration
-- 🚀 **Enterprise Ready** – SOC 2 Type II, HIPAA eligible, GDPR compliant
+This is **not** Home Assistant Application Credentials.
 
-> **🙏 Credits**: This integration is based on the excellent work of [@loryanstrant](https://github.com/loryanstrant) and the [HA-ElevenLabs-Custom-TTS](https://github.com/loryanstrant/HA-ElevenLabs-Custom-TTS) project. The voice profile management system and architecture were adapted from that original integration.
+### Platforms this entry loads
+
+After setup, Home Assistant forwards the single config entry to:
+
+- **`conversation`** — entity **Grok** (`conversation.spacexai_grok`) talking to `https://api.x.ai/v1/responses` (Chat Completions JSON is still parsed if returned)
+- **`tts`** — entity **TTS** (`tts.spacexai_tts`) using the existing xAI Voice path (`https://api.x.ai/v1/tts`)
+
+STT is out of scope.
 
 ---
 
-## ✨ Features
+## Breaking change: domain `xai_custom_tts` → `spacexai`
 
-> **📝 Note:** The default TTS entity ID is `tts.xai_custom_tts`. This is used in all the examples below.
+**This is a clean domain rename.** Home Assistant config entries are keyed by domain, so existing **xAI Custom TTS** entries do **not** migrate automatically.
 
-### Voice Discovery
-- **5 Distinct Voices**: Eve (energetic female), Ara (warm female), Rex (professional male), Sal (neutral), Leo (authoritative male)
-- **Voice Search**: Search voices by name, type, tone, or description
-- **Multi-Language Support**: 21 languages including auto-detection
+1. Note any TTS voice profiles you care about (they live on the old entry's options).
+2. Remove **xAI Custom TTS** (**Settings → Devices & services**).
+3. If HACS left `config/custom_components/xai_custom_tts/` behind after the update, delete that folder.
+4. Restart Home Assistant.
+5. Add **SpaceXAI** and sign in with Grok (OAuth) or paste the same console API key as fallback.
+6. Recreate voice profiles if needed. Point automations at `tts.spacexai_tts` (was `tts.xai_custom_tts`) and `spacexai.get_voices` (was `xai_custom_tts.get_voices`).
 
-### Audio Format Options
-- **Codecs**: MP3, WAV, PCM, G.711 μ-law, G.711 A-law
-- **Sample Rates**: 8000, 16000, 22050, 24000 (default), 44100, 48000 Hz
-- **Bit Rates**: 32, 64, 96, 128 (default), 192 kbps (MP3 only)
-- **Telephony Integration**: Direct G.711 support for PBX/SIP systems without transcoding
+Within the new domain, config-entry **version 2** stores `auth_method` (`oauth` \| `api_key`) plus `TokenSet` keys (`access_token`, `refresh_token`, `expires_at`, `token_type`, `scope`). A v1 API-key-only payload is migrated in `async_migrate_entry` if it is ever loaded under `spacexai`.
 
-### Native TTS Platform Integration
-- **Seamless Integration**: Works with Home Assistant's native TTS services (`tts.speak`, `tts.cloud_say`, etc.)
-- **Media Player Support**: Use with any Home Assistant media player through the TTS platform
-- **Multi-Language Support**: Supports 21+ languages
+The **GitHub / HACS repository URL** stays `luxus/HA-xAI-Custom-TTS` for now.
 
-### Voice Profile Management
-- **Create Named Profiles**: Save your favorite voice configurations with custom names
-- **Full Format Control**: Set codec, sample rate, and bit rate per profile
-- **Easy Profile Management**: Add, modify, or delete voice profiles through the Home Assistant UI
-- **Quick Profile Selection**: Use saved profiles with the `voice_profile` option in TTS calls
-- **Profile Storage**: Profiles are stored in Home Assistant configuration and persist across restarts
+---
+
+## Architecture
+
+```
+Assist / conversation.process
+        │
+        ▼
+  jev_assist (optional router)
+        │  kind=fast_service → HA light service
+        │  kind=reject       → canned refusal
+        │  kind=grok         → hand off
+        ▼
+  spacexai conversation “Grok”
+        │  Authorization: Bearer <oauth access_token | api_key>
+        ▼
+  https://api.x.ai/v1/responses   (same auth headers as TTS)
+        │
+        ▼
+  real Grok prose (Assist tools are a stub; no HA service calls from Grok yet)
+
+TTS (tts.speak → tts.spacexai_tts) uses the same config entry and Bearer token
+against https://api.x.ai/v1/tts.
+```
+
+OAuth uses the public Grok CLI client from `ha-spacexai-auth` (device code + PKCE S256 at `https://auth.x.ai`). Setup/reload calls `ensure_fresh` (refresh when `expires_at` is within 60s). Rotated refresh tokens are persisted. API key for `https://api.x.ai` is **fallback only** (same pattern as `jev_assist`).
+
+---
+
+## Enable path
+
+1. Install **SpaceXAI** (HACS or manual) and restart Home Assistant.  
+   Manifest requirement: `ha-spacexai-auth @ git+https://github.com/luxus/ha-spacexai-auth.git@main`
+2. **Settings → Devices & services → Add integration → SpaceXAI**
+3. **Sign in with Grok** (default). Home Assistant shows a URL + user code, polls the token endpoint, and stores access + refresh tokens.  
+   Or choose **xAI API key** if OAuth entitlement is missing / you bill via [console.x.ai](https://console.x.ai/team/default/api-keys).
+4. Confirm two entities on the SpaceXAI device:
+   - `conversation.spacexai_grok` (name **Grok**)
+   - `tts.spacexai_tts` (name **TTS**)
+5. **Assist pipeline**
+   - Use **Grok** directly as the conversation agent, **or**
+   - Use **Jev Assist** as the pipeline agent and have it hand off `grok` routes here (see below).
+6. Optional: **Configure** on the integration to add TTS voice profiles.
+
+---
+
+## How `jev_assist` should hand off
+
+`jev_assist` stays a **thin router**. Do not implement Grok inside that repo. When `route(...).kind == "grok"`, hand the utterance to this umbrella's conversation agent:
+
+```python
+from homeassistant.components import conversation
+
+# After Jev routes kind == "grok":
+result = await conversation.async_converse(
+    hass,
+    text=user_input.text,
+    conversation_id=user_input.conversation_id,
+    context=user_input.context,
+    language=user_input.language,
+    agent_id="conversation.spacexai_grok",
+)
+```
+
+Until that handoff ships in `jev_assist`, set the Assist pipeline conversation agent to **Grok** (this integration). This repository does **not** change `jev_assist`.
 
 ---
 
@@ -59,429 +115,122 @@ This custom component provides:
 
 ### Via HACS (Recommended)
 
-1. Open HACS in your Home Assistant instance
-2. Go to "Integrations"
-3. Click the three dots menu and select "Custom repositories"
-4. Add `https://github.com/luxus/HA-xAI-Custom-TTS` as repository
-5. Set category to "Integration"
-6. Click "Add"
-7. Find "xAI Custom TTS" in the integration list and install it
-8. Restart Home Assistant
-9. Go to Configuration > Integrations
-10. Click "Add Integration" and search for "xAI Custom TTS"
-11. Enter your xAI API key from [console.x.ai](https://console.x.ai/team/default/api-keys)
-
-Or replace steps 1-6 with this:
+1. Open HACS → **Integrations**
+2. Custom repositories → `https://github.com/luxus/HA-xAI-Custom-TTS` → category **Integration**
+3. Install **SpaceXAI**, restart Home Assistant
+4. **Settings → Devices & services → Add integration → SpaceXAI**
 
 [![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=luxus&repository=HA-xAI-Custom-TTS&category=integration)
 
 ### Manual Installation
 
-1. Copy the `custom_components/xai_custom_tts` folder to your Home Assistant `custom_components` directory
+1. Copy `custom_components/spacexai` into your Home Assistant `custom_components` directory
 2. Restart Home Assistant
-3. Go to Configuration > Integrations
-4. Click "Add Integration" and search for "xAI Custom TTS"
-5. Enter your xAI API key from [console.x.ai](https://console.x.ai/team/default/api-keys)
+3. Add the **SpaceXAI** integration
 
 ---
 
-## 🎭 Voice Profile Management
+## Conversation (Grok)
 
-After installation, you can create and manage voice profiles through the Home Assistant UI. Voice profiles allow you to save your favorite voice configurations with custom names for easy reuse.
+The **Grok** conversation entity calls `https://api.x.ai/v1/responses` with the same `Authorization: Bearer …` headers used for TTS (`ha_spacexai_auth.authorization_headers`). It returns Grok's assistant text as Assist speech. Home Assistant LLM tool-calling is stubbed: Grok will talk about devices but will not execute services (Jev's fast path covers lights).
 
-### Accessing Voice Profile Settings
-
-1. Go to **Settings** → **Devices & Services** → **Integrations**
-2. Find your **xAI Custom TTS** integration
-3. Click **Configure** (or the gear icon)
-4. You'll see the Voice Profile Management interface
-
-### Managing Voice Profiles
-
-#### Adding a New Voice Profile
-
-1. In the Voice Profile Management interface, select **"Add New Voice Profile"**
-2. Fill out the profile details:
-   - **Profile Name**: A descriptive name for your profile (e.g., "News Reader", "Bedtime Story")
-   - **Voice**: Choose from the 5 xAI voices
-   - **Language**: Select the language code (default: "en", or use "auto" for auto-detection)
-   - **Audio Codec**: Select output format (MP3, WAV, PCM, G.711 μ-law, G.711 A-law)
-   - **Sample Rate**: Audio quality (24000 Hz default, lower for telephony)
-   - **Bit Rate**: Compression quality for MP3 (128000 bps default)
-3. Click **Submit** to save the profile
-
-#### Available Voices
-
-| Voice | Type | Tone | Best For |
-|-------|------|------|----------|
-| **Eve** | Female | Energetic, upbeat | Engaging announcements, energetic content |
-| **Ara** | Female | Warm, friendly | Conversational interactions, friendly greetings |
-| **Rex** | Male | Confident, clear | Professional announcements, business content |
-| **Sal** | Neutral | Smooth, balanced | General purpose, versatile contexts |
-| **Leo** | Male | Authoritative, strong | Instructions, alerts, important announcements |
-
-#### Audio Format Recommendations
-
-| Use Case | Codec | Sample Rate | Notes |
-|----------|-------|-------------|-------|
-| **General Home Assistant** | MP3 | 24000 Hz | Good balance of quality and size |
-| **High Quality Audio** | WAV | 44100 Hz | Uncompressed, best quality |
-| **SIP/PBX Integration** | mulaw | 8000 Hz | Native telephony format |
-| **VoIP Systems** | alaw | 8000 Hz | European telephony standard |
-| **Low Bandwidth** | MP3 | 16000 Hz | Smaller files, faster streaming |
-
-#### Modifying an Existing Profile
-
-1. Select **"Modify Existing Profile"** 
-2. Choose the profile you want to edit from the dropdown
-3. Update any settings you want to change
-4. Click **Submit** to save changes
-
-#### Deleting a Profile
-
-1. Select **"Delete Voice Profile"**
-2. Choose the profile to delete from the dropdown
-3. Confirm the deletion
-
-### Using Voice Profiles
-
-Once you've created voice profiles, you can use them in your TTS calls:
-
-```yaml
-service: tts.speak
-data:
-  entity_id: tts.xai_custom_tts  # Note: Default entity ID
-  message: "This message uses my custom voice profile!"
-  media_player_entity_id: media_player.living_room_speaker
-  options:
-    voice_profile: "News Reader"  # Use your saved profile
-```
-
-You can also combine voice profiles with custom options (custom options override profile settings):
-
-```yaml
-service: tts.speak
-data:
-  entity_id: tts.xai_custom_tts
-  message: "This uses the profile but in Spanish."
-  media_player_entity_id: media_player.living_room_speaker
-  options:
-    voice_profile: "News Reader"
-    language: "es"  # This overrides the profile's language setting
-```
+Default model: `grok-4`.
 
 ---
 
-## Usage
+## TTS
 
-### Get Voices Service
+Default TTS entity ID is **`tts.spacexai_tts`**. Voice profiles, codecs, and speech tags work as before.
 
-Retrieves all available xAI voices with optional filtering:
+### Voice Profile Management
 
-```yaml
-# Get all voices
-service: xai_custom_tts.get_voices
+**Settings → Devices & services → SpaceXAI → Configure**
 
-# Search for voices
-service: xai_custom_tts.get_voices
-data:
-  search_text: "female"  # Search by name, type, tone, or description
-```
+Voices: Eve, Ara, Rex, Sal, Leo. Codecs: MP3, WAV, PCM, G.711 μ-law/A-law.
 
-This returns a list of voices with their IDs, names, types, tones, and descriptions.
-
-### Native TTS Integration
-
-Use with Home Assistant's native TTS services for direct media player output:
-
-#### Basic TTS Usage
 ```yaml
 service: tts.speak
 data:
-  entity_id: tts.xai_custom_tts  # Default entity ID
-  message: "Hello from Home Assistant using xAI!"
-  media_player_entity_id: media_player.living_room_speaker
-```
-
-#### Advanced TTS with Custom Options
-```yaml
-service: tts.speak  
-data:
-  entity_id: tts.xai_custom_tts
-  message: "Good morning! The weather today is sunny."
+  entity_id: tts.spacexai_tts
+  message: "Hello from Grok TTS"
   media_player_entity_id: media_player.living_room_speaker
   options:
-    voice: "rex"  # xAI voice ID: eve, ara, rex, sal, leo
+    voice: "ara"
     language: "en"
     codec: "mp3"
     sample_rate: 24000
-    bit_rate: 128000
+    # or: voice_profile: "News Reader"
 ```
 
-#### Telephony-Ready Output (G.711)
+### Get Voices
+
 ```yaml
-service: tts.speak  
+service: spacexai.get_voices
 data:
-  entity_id: tts.xai_custom_tts
-  message: "You have reached the automated attendant."
-  media_player_entity_id: media_player.pbx_gateway
-  options:
-    voice: "sal"  # Neutral voice
-    codec: "mulaw"  # G.711 μ-law for telephony
-    sample_rate: 8000  # Standard telephony rate
+  search_text: "female"
 ```
 
-#### Using Voice Profiles
-```yaml
-service: tts.speak  
-data:
-  entity_id: tts.xai_custom_tts
-  message: "This announcement uses my custom voice profile."
-  media_player_entity_id: media_player.living_room_speaker
-  options:
-    voice_profile: "News Anchor"  # Use your saved voice profile
-```
+### TTS options
 
-### Example Automations
+- **voice_profile** — saved profile name
+- **voice** — `eve` \| `ara` \| `rex` \| `sal` \| `leo`
+- **language** — `auto`, `en`, `ar-EG`, `ar-SA`, `ar-AE`, `bn`, `zh`, `fr`, `de`, `hi`, `id`, `it`, `ja`, `ko`, `pt-BR`, `pt-PT`, `ru`, `es-MX`, `es-ES`, `tr`, `vi`
+- **codec** — `mp3`, `wav`, `pcm`, `mulaw`, `alaw`
+- **sample_rate** — `8000`, `16000`, `22050`, `24000`, `44100`, `48000`
+- **bit_rate** — MP3 only: `32000`–`192000`
 
-#### Morning Announcement with xAI
-```yaml
-automation:
-  - alias: "Morning Announcement"
-    trigger:
-      - platform: time
-        at: "07:00:00"
-    action:
-      - service: tts.speak
-        data:
-          entity_id: tts.xai_custom_tts
-          message: "Good morning! Today is {{ now().strftime('%A, %B %d') }}. The weather is {{ states('weather.home') }}."
-          media_player_entity_id: media_player.bedroom_speaker
-          options:
-            voice: "ara"  # Warm, friendly female voice
-            language: "en"
-```
+### Speech tags
 
-#### Security Alert with Authoritative Voice
-```yaml
-automation:
-  - alias: "Security Alert"
-    trigger:
-      - platform: state
-        entity_id: binary_sensor.front_door
-        to: "on"
-    action:
-      - service: tts.speak
-        data:
-          entity_id: tts.xai_custom_tts
-          message: "Security alert: Front door has been opened."
-          media_player_entity_id: media_player.living_room_speaker
-          options:
-            voice: "leo"  # Authoritative male voice
-```
-
-#### Multi-Language Announcement
-```yaml
-automation:
-  - alias: "Spanish Announcement"
-    trigger:
-      - platform: time
-        at: "12:00:00"
-    action:
-      - service: tts.speak
-        data:
-          entity_id: tts.xai_custom_tts
-          message: "Buenas tardes. Es la hora del almuerzo."
-          media_player_entity_id: media_player.kitchen_speaker
-          options:
-            voice: "eve"
-            language: "es-MX"  # Spanish (Mexico)
-```
-
-#### Bedtime Story with Voice Profile
-```yaml
-automation:
-  - alias: "Bedtime Story"
-    trigger:
-      - platform: time
-        at: "20:00:00"
-    action:
-      - service: tts.speak
-        data:
-          entity_id: tts.xai_custom_tts
-          message: "Once upon a time, in a land far away..."
-          media_player_entity_id: media_player.kids_room_speaker
-          options:
-            voice_profile: "Storyteller"
-```
+Inline: `[pause]`, `[laugh]`, `[sigh]`, …  
+Wrapping: `<whisper>…</whisper>`, `<emphasis>…</emphasis>`, …
 
 ---
 
-## Parameters
+## Tests
 
-### Get Voices Service Parameters
-
-- **search_text** (optional): Search for voices by name, type, tone, or description
-  - Example: "female", "male", "energetic", "professional"
-
-**Returns:** List of voices with voice_id, name, type, tone, and description
-
-### TTS Platform Options
-
-When using Home Assistant's native TTS services, you can pass these options:
-
-- **voice_profile** (optional): Use a saved voice profile by name (overrides individual settings)
-- **voice** (optional): xAI voice ID to use (default: "eve")
-  - Options: `eve`, `ara`, `rex`, `sal`, `leo`
-- **language** (optional): Language code (default: "en")
-  - Options: `auto`, `en`, `ar-EG`, `ar-SA`, `ar-AE`, `bn`, `zh`, `fr`, `de`, `hi`, `id`, `it`, `ja`, `ko`, `pt-BR`, `pt-PT`, `ru`, `es-MX`, `es-ES`, `tr`, `vi`
-- **codec** (optional): Audio codec (default: "mp3")
-  - Options: `mp3`, `wav`, `pcm`, `mulaw`, `alaw`
-- **sample_rate** (optional): Sample rate in Hz (default: 24000)
-  - Options: `8000`, `16000`, `22050`, `24000`, `44100`, `48000`
-- **bit_rate** (optional): Bit rate for MP3 in bps (default: 128000)
-  - Options: `32000`, `64000`, `96000`, `128000`, `192000`
-
-**Note:** When using `voice_profile`, the profile settings are applied first, then any additional options override specific profile settings.
-
----
-
-## 🎭 AI Prompting with Speech Tags
-
-When using xAI Custom TTS with AI-generated messages (via the [AI Contextual TTS Announcer blueprint](https://github.com/luxus/home-assistant-goodies) or custom automations), you can use **expressive speech tags** for more natural delivery.
-
-### Inline Tags
-Place these where the expression should occur:
-- `[pause]`, `[long-pause]` - Dramatic pauses
-- `[laugh]`, `[chuckle]`, `[giggle]` - Laughter
-- `[cry]`, `[tsk]`, `[tongue-click]`, `[lip-smack]` - Vocal expressions
-- `[breath]`, `[inhale]`, `[exhale]`, `[sigh]` - Breathing sounds
-- `[hum-tune]` - Humming
-
-### Wrapping Tags
-Wrap text sections to change delivery style:
-- `<soft>text</soft>` - Softer volume
-- `<whisper>text</whisper>` - Whispered speech
-- `<loud>text</loud>` - Louder speech
-- `<build-intensity>text</build-intensity>` - Increasing intensity
-- `<decrease-intensity>text</decrease-intensity>` - Decreasing intensity
-- `<higher-pitch>text</higher-pitch>` - Higher pitch
-- `<lower-pitch>text</lower-pitch>` - Lower pitch
-- `<slow>text</slow>` - Slower speed
-- `<fast>text</fast>` - Faster speed
-- `<sing-song>text</sing-song>` - Sing-song style
-- `<singing>text</singing>` - Full singing
-- `<laugh-speak>text</laugh-speak>` - Laughing while speaking
-- `<emphasis>text</emphasis>` - Emphasized words
-
-### Example with Speech Tags
-```yaml
-service: tts.speak
-data:
-  entity_id: tts.xai_custom_tts
-  message: "So I walked in and [pause] there it was. [laugh] I honestly could not believe it! <whisper>It was a secret the whole time.</whisper>"
-  media_player_entity_id: media_player.living_room_speaker
+```bash
+pip install -r requirements-dev.txt
+pytest
 ```
 
-### AI Prompt Template
-Add this to your AI prompts to ensure the AI knows to use speech tags:
-
-```
-You are generating text for xAI Text-to-Speech (TTS) API.
-The TTS supports expressive speech tags for natural delivery:
-
-Inline tags: [pause], [long-pause], [laugh], [chuckle], [giggle], [cry], [tsk], 
-[tongue-click], [lip-smack], [breath], [inhale], [exhale], [sigh], [hum-tune]
-
-Wrapping tags: <soft>, <whisper>, <loud>, <build-intensity>, <decrease-intensity>,
-<higher-pitch>, <lower-pitch>, <slow>, <fast>, <sing-song>, <singing>, 
-<laugh-speak>, <emphasis>
-
-Respond ONLY with the raw spoken text including any speech tags.
-No markdown, no quotes, no formatting, no explanations.
-```
-
----
-
-## 🚨 Troubleshooting
-
-### Entity ID Not Found
-- **Default Entity ID**: `tts.xai_custom_tts`
-- **Check Entity Registry**: Go to Settings → Devices & Services → Entities and search for "xai"
-
-### Voice Profiles Not Working
-- Ensure you're using the correct `voice_profile` name (case-sensitive)
-- Check that the profile exists in Settings → Integrations → xAI Custom TTS → Configure
-
-### API Errors
-- Verify your xAI API key is correct from [console.x.ai](https://console.x.ai/team/default/api-keys)
-- Check Home Assistant logs for detailed error messages
-- Ensure your internet connection is stable
-
-### Audio Quality Issues
-- For higher quality, use `codec: "wav"` with `sample_rate: 44100`
-- For telephony integration, use `codec: "mulaw"` with `sample_rate: 8000`
-- MP3 `bit_rate` only applies when using `codec: "mp3"`
-
-### Integration Not Loading
-- Restart Home Assistant after installation
-- Check that the `custom_components` directory structure is correct:
-  ```
-  custom_components/
-  └── xai_custom_tts/
-      ├── __init__.py
-      ├── manifest.json
-      ├── config_flow.py
-      ├── tts.py
-      ├── const.py
-      ├── strings.json
-      ├── services.yaml
-      └── translations/
-          └── en.json
-  ```
-
----
-
-## 📝 Changelog
-
-### Version 1.0.0
-- **Initial Release**: Migrated from ElevenLabs to xAI Voice API
-- **Simplified Voice Management**: 5 distinct voices with clear use cases
-- **Multi-Language Support**: 21 languages including auto-detection
-- **Voice Profiles**: Complete UI for managing voice configurations
-- **Audio Formats**: MP3, WAV, PCM, G.711 μ-law, G.711 A-law support
-- **Telephony Ready**: Native G.711 codec support for SIP/PBX integration
+No live xAI keys are required. Tests cover `TokenSet` config-entry roundtrip, `ensure_entry_tokens` / `ensure_fresh`, domain/manifest requirements, and a Grok conversation client smoke test against mocked HTTP.
 
 ---
 
 ## Requirements
 
 - Home Assistant 2024.8 or later
-- xAI API key from [console.x.ai](https://console.x.ai/team/default/api-keys)
-- Internet connection for API calls
+- Grok OAuth (default) or an xAI API key from [console.x.ai](https://console.x.ai/team/default/api-keys)
+- Shared library [`ha-spacexai-auth`](https://github.com/luxus/ha-spacexai-auth)
 
 ---
 
-## Contributing
+## Changelog
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+### Version 2.0.0
+
+- **Breaking:** HA domain `xai_custom_tts` → `spacexai` (see migration above)
+- Umbrella config entry: OAuth-first via `ha-spacexai-auth` (device code + PKCE); API-key fallback
+- Conversation platform entity **Grok** → `https://api.x.ai/v1/responses`
+- TTS kept on the same entry / auth headers
+- STT not included
+
+### Version 1.0.0
+
+- Initial TTS-only release (legacy domain `xai_custom_tts`)
 
 ---
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
----
+MIT — see [LICENSE](LICENSE).
 
 ## Support
 
-If you encounter any issues, please report them on the [GitHub Issues page](https://github.com/luxus/HA-xAI-Custom-TTS/issues).
+[GitHub Issues](https://github.com/luxus/HA-xAI-Custom-TTS/issues)
 
----
+## xAI resources
 
-## xAI Voice Resources
-
-- [xAI Voice API Documentation](https://docs.x.ai/docs/api-reference#text-to-speech)
-- [xAI Voice Demos](https://x.ai/api/voice)
-- [Get xAI API Key](https://console.x.ai/team/default/api-keys)
+- [xAI Voice API](https://docs.x.ai/docs/api-reference#text-to-speech)
+- [Responses API](https://docs.x.ai/docs/api-reference#responses)
+- [Get an API key](https://console.x.ai/team/default/api-keys)

@@ -1,23 +1,27 @@
-# Example Configuration for xAI Custom TTS
+# Example Configuration for SpaceXAI (conversation Grok + TTS)
 
-# Add to your configuration.yaml or use the UI:
-# Settings → Devices & Services → Add Integration → xAI Custom TTS
+# Add via UI:
+# Settings → Devices & Services → Add Integration → SpaceXAI
+# Sign in with Grok (OAuth) or paste a console.x.ai API key as fallback.
 
-# After setup, you can use the TTS service in automations:
+# Conversation: set Assist pipeline agent to conversation.spacexai_grok
+# (or let jev_assist hand off grok routes to that entity).
+
+# After setup, TTS:
 
 automation:
-  - alias: "Morning Announcement with xAI"
+  - alias: "Morning Announcement with SpaceXAI TTS"
     trigger:
       - platform: time
         at: "07:00:00"
     action:
       - service: tts.speak
         data:
-          entity_id: tts.xai_custom_tts
+          entity_id: tts.spacexai_tts
           message: "Good morning! Today is {{ now().strftime('%A, %B %d') }}."
           media_player_entity_id: media_player.bedroom_speaker
           options:
-            voice: "ara"  # Warm, friendly female voice
+            voice: "ara"
             language: "en"
             codec: "mp3"
             sample_rate: 24000
@@ -30,94 +34,16 @@ automation:
     action:
       - service: tts.speak
         data:
-          entity_id: tts.xai_custom_tts
+          entity_id: tts.spacexai_tts
           message: "Security alert: Front door has been opened."
           media_player_entity_id: media_player.living_room_speaker
           options:
-            voice: "leo"  # Authoritative male voice
+            voice: "leo"
             language: "en"
 
-  - alias: "Telephony Announcement"
-    trigger:
-      - platform: state
-        entity_id: input_boolean.pbx_announcement
-        to: "on"
-    action:
-      - service: tts.speak
-        data:
-          entity_id: tts.xai_custom_tts
-          message: "You have reached the after-hours line."
-          media_player_entity_id: media_player.pbx_gateway
-          options:
-            voice: "sal"  # Neutral voice
-            codec: "mulaw"  # G.711 μ-law for telephony
-            sample_rate: 8000  # Standard telephony rate
-
-  - alias: "Spanish Announcement"
-    trigger:
-      - platform: time
-        at: "12:00:00"
-    action:
-      - service: tts.speak
-        data:
-          entity_id: tts.xai_custom_tts
-          message: "Buenas tardes. Es la hora del almuerzo."
-          media_player_entity_id: media_player.kitchen_speaker
-          options:
-            voice: "eve"
-            language: "es-MX"  # Spanish (Mexico)
-
-  - alias: "High Quality Audio"
-    trigger:
-      - platform: state
-        entity_id: input_boolean.announce_important
-        to: "on"
-    action:
-      - service: tts.speak
-        data:
-          entity_id: tts.xai_custom_tts
-          message: "Important announcement with high quality audio."
-          media_player_entity_id: media_player.hifi_system
-          options:
-            voice: "rex"
-            codec: "wav"  # Uncompressed audio
-            sample_rate: 44100  # CD quality
-
-# Get available voices
 script:
-  get_xai_voices:
+  get_spacexai_voices:
     sequence:
-      - service: xai_custom_tts.get_voices
+      - service: spacexai.get_voices
         data:
           search_text: "female"
-
-# Using voice profiles (set up in the integration UI)
-automation:
-  - alias: "Bedtime Story"
-    trigger:
-      - platform: time
-        at: "20:00:00"
-    action:
-      - service: tts.speak
-        data:
-          entity_id: tts.xai_custom_tts
-          message: "Once upon a time..."
-          media_player_entity_id: media_player.kids_room_speaker
-          options:
-            voice_profile: "Storyteller"  # Use a saved profile
-
-# Auto-language detection
-automation:
-  - alias: "Multi-Language Greeting"
-    trigger:
-      - platform: state
-        entity_id: input_button.greet
-    action:
-      - service: tts.speak
-        data:
-          entity_id: tts.xai_custom_tts
-          message: "Welcome! Bienvenue! Willkommen!"
-          media_player_entity_id: media_player.entrance_speaker
-          options:
-            voice: "eve"
-            language: "auto"  # Auto-detect language from text

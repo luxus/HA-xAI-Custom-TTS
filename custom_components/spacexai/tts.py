@@ -1,4 +1,4 @@
-"""xAI TTS platform."""
+"""SpaceXAI TTS platform (existing xAI Voice paths, shared umbrella auth)."""
 
 from __future__ import annotations
 
@@ -10,24 +10,27 @@ import async_timeout
 import httpx
 
 from homeassistant.components.tts import TextToSpeechEntity, TtsAudioType, Voice
-from homeassistant.core import HomeAssistant, callback
-from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.config_entries import ConfigEntry
+from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.httpx_client import get_async_client
 
 from .const import (
+    DEFAULT_BIT_RATE,
+    DEFAULT_CODEC,
+    DEFAULT_LANGUAGE,
+    DEFAULT_NAME,
+    DEFAULT_SAMPLE_RATE,
+    DEFAULT_VOICE,
     DOMAIN,
+    SUPPORT_BIT_RATES,
+    SUPPORT_CODECS,
+    SUPPORT_LANGUAGES,
+    SUPPORT_SAMPLE_RATES,
+    TTS_ENTITY_NAME,
     XAI_TTS_URL,
     XAI_VOICES,
-    DEFAULT_VOICE,
-    DEFAULT_LANGUAGE,
-    DEFAULT_CODEC,
-    DEFAULT_SAMPLE_RATE,
-    DEFAULT_BIT_RATE,
-    SUPPORT_LANGUAGES,
-    SUPPORT_CODECS,
-    SUPPORT_SAMPLE_RATES,
-    SUPPORT_BIT_RATES,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -56,37 +59,34 @@ async def async_setup_entry(
     config_entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    """Set up xAI TTS platform via config entry."""
-    # Get the API key from the integration data
+    """Set up SpaceXAI TTS platform via config entry."""
     if DOMAIN not in hass.data or config_entry.entry_id not in hass.data[DOMAIN]:
-        _LOGGER.error("xAI integration not loaded")
+        _LOGGER.error("SpaceXAI integration not loaded")
         return
-    
-    entry_data = hass.data[DOMAIN][config_entry.entry_id]
-    api_key = entry_data["api_key"]
-    
-    async_add_entities([XAITTSProvider(hass, api_key, config_entry)])
+
+    runtime = hass.data[DOMAIN][config_entry.entry_id]
+    async_add_entities([SpaceXAITTSEntity(hass, runtime, config_entry)])
 
 
-class XAITTSProvider(TextToSpeechEntity):
-    """xAI TTS provider."""
+class SpaceXAITTSEntity(TextToSpeechEntity):
+    """xAI TTS provider sharing the umbrella config entry's auth."""
 
-    def __init__(self, hass: HomeAssistant, api_key: str, config_entry: ConfigEntry) -> None:
-        """Initialize xAI TTS provider."""
+    _attr_has_entity_name = True
+    _attr_name = TTS_ENTITY_NAME
+
+    def __init__(self, hass: HomeAssistant, runtime: Any, config_entry: ConfigEntry) -> None:
+        """Initialize SpaceXAI TTS provider."""
         self.hass = hass
-        self._api_key = api_key
+        self._runtime = runtime
         self._config_entry = config_entry
         self._httpx_client = get_async_client(hass)
-
-    @property
-    def name(self) -> str:
-        """Return the name of the entity (display name in UI)."""
-        return "xAI Custom TTS"
-
-    @property
-    def unique_id(self) -> str:
-        """Return a unique ID for this TTS entity."""
-        return f"{DOMAIN}_tts"
+        self._attr_unique_id = f"{config_entry.entry_id}-tts"
+        self._attr_device_info = dr.DeviceInfo(
+            identifiers={(DOMAIN, config_entry.entry_id)},
+            name=config_entry.title or DEFAULT_NAME,
+            manufacturer="xAI",
+            model="Grok",
+        )
 
     @property
     def default_language(self) -> str:
@@ -225,9 +225,8 @@ class XAITTSProvider(TextToSpeechEntity):
         
         try:
             with async_timeout.timeout(30):
-                # Prepare request
                 headers = {
-                    "Authorization": f"Bearer {self._api_key}",
+                    **await self._runtime.async_authorization_headers(),
                     "Content-Type": "application/json",
                 }
                 

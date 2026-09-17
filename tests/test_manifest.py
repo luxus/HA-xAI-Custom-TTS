@@ -17,6 +17,8 @@ def test_manifest_requires_ha_spacexai_auth() -> None:
     assert any(
         "git+https://github.com/luxus/ha-spacexai-auth.git@main" in item for item in reqs
     )
+    assert any("voluptuous-openapi" in item for item in reqs)
+    assert all("openai" not in item for item in reqs)
     assert all(" " not in item for item in reqs)
 
 
@@ -51,3 +53,21 @@ def test_reauth_confirm_has_auth_method_selector() -> None:
 def test_reauth_abort_reason_is_translated() -> None:
     assert "reauth_successful" in STRINGS["config"]["abort"]
     assert "oauth_failed" in STRINGS["config"]["abort"]
+
+
+def test_conversation_options_and_services_are_translated() -> None:
+    conv = STRINGS["options"]["step"]["conversation"]["data"]
+    assert "llm_hass_api" in conv
+    assert "interaction_mode" in conv
+    assert "live_search" in conv
+    assert "chat_model" in conv
+    assert "fast_model" in conv
+    assert "fallback_model" in conv
+    for svc in (
+        "ask",
+        "photo_analysis",
+        "home_briefing",
+        "generate_image",
+        "generate_content",
+    ):
+        assert svc in STRINGS["services"]

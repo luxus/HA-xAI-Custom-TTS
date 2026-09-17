@@ -35,7 +35,7 @@ def test_stt_is_xai_not_whisper() -> None:
     assert XAI_STT_URL == "https://api.x.ai/v1/stt"
     assert XAI_STT_WS_URL == "wss://api.x.ai/v1/stt"
     assert "/audio/transcriptions" not in XAI_STT_URL
-    assert PLATFORMS == ("conversation", "tts", "stt")
+    assert PLATFORMS == ("conversation", "tts", "stt", "sensor")
     src = (_ROOT / "stt_request.py").read_text()
     assert "file" in src
     assert "Whisper" in src or "whisper" in src.lower()

@@ -1,11 +1,14 @@
-# Example Configuration for SpaceXAI (conversation Grok + TTS)
+# Example Configuration for SpaceXAI (Grok conversation + TTS + STT)
 
 # Add via UI:
 # Settings → Devices & Services → Add Integration → SpaceXAI
 # Sign in with Grok (OAuth) or paste a console.x.ai API key as fallback.
 
-# Conversation: set Assist pipeline agent to conversation.spacexai_grok
-# (or let jev_assist hand off grok routes to that entity).
+# Assist pipeline:
+#   conversation agent: conversation.spacexai_grok
+#   speech-to-text:     stt.spacexai_stt
+#   text-to-speech:     tts.spacexai_tts
+# (or let jev_assist hand off grok routes to conversation.spacexai_grok)
 
 # After setup, TTS:
 

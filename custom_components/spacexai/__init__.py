@@ -1,4 +1,4 @@
-"""SpaceXAI umbrella: Grok conversation + xAI TTS on one config entry."""
+"""SpaceXAI umbrella: Grok conversation + xAI TTS + STT on one config entry."""
 
 from __future__ import annotations
 
@@ -26,9 +26,9 @@ from .const import (
     DOMAIN,
     PLATFORMS,
     SERVICE_GET_VOICES,
-    XAI_VOICES,
 )
 from .migrate import migrate_entry_data
+from .voices import fallback_voices
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -46,7 +46,7 @@ else:
 
 @dataclass
 class SpaceXAIRuntime:
-    """Per-entry runtime: shared auth for conversation + TTS."""
+    """Per-entry runtime: shared auth for conversation + TTS + STT."""
 
     hass: Any
     entry: Any
@@ -137,19 +137,21 @@ async def _async_register_services(hass: Any) -> None:
     async def get_voices_service(call: ServiceCall) -> ServiceResponse:
         search_text = str(call.data.get(ATTR_SEARCH_TEXT, "")).lower().strip()
         voices_list = []
-        for voice_id, voice_info in XAI_VOICES.items():
+        for voice_id, voice_info in fallback_voices().items():
+            name = str(voice_info.get("name") or voice_id)
+            kind = str(voice_info.get("type") or "")
+            tone = str(voice_info.get("tone") or "")
+            description = str(voice_info.get("description") or "")
             voice_data = {
                 "voice_id": voice_id,
-                "name": voice_info["name"],
-                "type": voice_info["type"],
-                "tone": voice_info["tone"],
-                "description": voice_info["description"],
+                "name": name,
+                "type": kind,
+                "tone": tone,
+                "description": description,
+                "source": voice_info.get("source", "builtin"),
             }
             if search_text:
-                searchable_text = (
-                    f"{voice_info['name'].lower()} {voice_info['type'].lower()} "
-                    f"{voice_info['tone'].lower()} {voice_info['description'].lower()}"
-                )
+                searchable_text = f"{name.lower()} {kind.lower()} {tone.lower()} {description.lower()}"
                 if search_text not in searchable_text:
                     continue
             voices_list.append(voice_data)
@@ -164,5 +166,5 @@ async def _async_register_services(hass: Any) -> None:
 
 
 def grok_authorization_headers(entry_data: Mapping[str, Any]) -> dict[str, str]:
-    """Bearer headers for Grok / TTS API calls from stored entry data."""
+    """Bearer headers for Grok / TTS / STT API calls from stored entry data."""
     return authorization_headers_for_entry(entry_data)

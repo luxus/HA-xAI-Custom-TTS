@@ -58,13 +58,36 @@ class FakeHttpxResponse:
 
 
 class FakeHttpxClient:
-    def __init__(self, response: FakeHttpxResponse, *, expected_url: str | None = None) -> None:
-        self.response = response
+    def __init__(
+        self,
+        response: FakeHttpxResponse | None = None,
+        *,
+        expected_url: str | None = None,
+        responses: list[FakeHttpxResponse] | None = None,
+    ) -> None:
+        if responses is not None:
+            self._queue = list(responses)
+        elif response is not None:
+            self._queue = [response]
+        else:
+            self._queue = []
+        self.response = self._queue[0] if self._queue else FakeHttpxResponse(200, {})
         self.expected_url = expected_url
         self.calls: list[dict[str, object]] = []
 
-    async def post(self, url: str, **kwargs: object) -> FakeHttpxResponse:
-        self.calls.append({"url": url, **kwargs})
+    def _next(self, url: str) -> FakeHttpxResponse:
         if self.expected_url is not None:
             assert url == self.expected_url
+        if self._queue:
+            item = self._queue.pop(0)
+            self.response = item
+            return item
         return self.response
+
+    async def post(self, url: str, **kwargs: object) -> FakeHttpxResponse:
+        self.calls.append({"method": "post", "url": url, **kwargs})
+        return self._next(url)
+
+    async def get(self, url: str, **kwargs: object) -> FakeHttpxResponse:
+        self.calls.append({"method": "get", "url": url, **kwargs})
+        return self._next(url)

@@ -18,6 +18,8 @@ from .const import (
     CONVERSATION_ENTITY_NAME,
     DEFAULT_NAME,
     DOMAIN,
+    GROK_CONVERSATION_ENTITY_ID,
+    GROK_CONVERSATION_UNIQUE_ID,
 )
 from .grok import GrokChatError, async_chat_complete, messages_from_chat_log
 
@@ -50,7 +52,8 @@ class GrokConversationEntity(
         self.hass = hass
         self.entry = entry
         self._runtime = runtime
-        self._attr_unique_id = f"{entry.entry_id}-grok"
+        self.entity_id = GROK_CONVERSATION_ENTITY_ID
+        self._attr_unique_id = GROK_CONVERSATION_UNIQUE_ID
         self._attr_device_info = dr.DeviceInfo(
             identifiers={(DOMAIN, entry.entry_id)},
             name=entry.title or DEFAULT_NAME,

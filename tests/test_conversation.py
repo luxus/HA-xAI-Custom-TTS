@@ -8,6 +8,7 @@ from spacexai.const import (
     CONVERSATION_ENTITY_NAME,
     DEFAULT_GROK_MODEL,
     DEFAULT_SYSTEM_PROMPT,
+    GROK_CONVERSATION_ENTITY_ID,
     PLATFORMS,
     XAI_RESPONSES_URL,
 )
@@ -23,9 +24,10 @@ from spacexai.grok import (
 from .fakes import FakeHttpxClient, FakeHttpxResponse
 
 
-def test_platforms_load_conversation_and_tts() -> None:
-    assert PLATFORMS == ("conversation", "tts")
+def test_platforms_load_conversation_tts_and_stt() -> None:
+    assert PLATFORMS == ("conversation", "tts", "stt")
     assert CONVERSATION_ENTITY_NAME == "Grok"
+    assert GROK_CONVERSATION_ENTITY_ID == "conversation.spacexai_grok"
 
 
 def test_extract_responses_api_prose() -> None:

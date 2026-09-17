@@ -26,6 +26,7 @@ def test_manifest_domain_and_platforms() -> None:
     assert MANIFEST["config_flow"] is True
     assert "conversation" in MANIFEST["dependencies"]
     assert "tts" in MANIFEST["dependencies"]
+    assert "stt" in MANIFEST["dependencies"]
     assert "application_credentials" not in MANIFEST.get("dependencies", [])
 
 

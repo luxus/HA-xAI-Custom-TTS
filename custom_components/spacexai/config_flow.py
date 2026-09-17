@@ -31,6 +31,7 @@ from homeassistant.helpers.selector import (
 )
 
 from .auth import authorization_headers_for_entry
+from .voices import fetch_all_voices, format_voice_label
 from .const import (
     AUTH_API_KEY,
     AUTH_OAUTH,
@@ -52,7 +53,6 @@ from .const import (
     OAUTH_RECOVERY_RETRY,
     SUPPORT_CODECS,
     SUPPORT_LANGUAGES,
-    XAI_VOICES,
     XAI_VOICES_URL,
 )
 
@@ -176,31 +176,17 @@ async def validate_api_key(hass: HomeAssistant, api_key: str) -> bool:
         return False
 
 
-async def fetch_xai_voices(hass: HomeAssistant, entry_data: dict[str, Any]) -> dict[str, dict[str, str]]:
+async def fetch_xai_voices(hass: HomeAssistant, entry_data: dict[str, Any]) -> dict[str, dict[str, Any]]:
     """Fetch available voices from xAI API using stored auth."""
     httpx_client = get_async_client(hass)
     try:
         headers = authorization_headers_for_entry(entry_data)
-        response = await httpx_client.get(XAI_VOICES_URL, headers=headers, timeout=10.0)
-        response.raise_for_status()
-        data = response.json()
-        voices: dict[str, dict[str, str]] = {}
-        for voice in data.get("voices", []):
-            voice_id = str(voice.get("voice_id", "")).lower()
-            name = voice.get("name", voice_id)
-            voices[voice_id] = {
-                "name": name,
-                "type": "Unknown",
-                "tone": "",
-                "description": f"xAI voice: {name}",
-            }
-        for voice_id, info in XAI_VOICES.items():
-            if voice_id in voices:
-                voices[voice_id].update(info)
-        return voices or dict(XAI_VOICES)
+        return await fetch_all_voices(httpx_client, headers)
     except Exception as err:  # noqa: BLE001
         _LOGGER.warning("Failed to fetch voices from xAI API: %s. Using cached defaults.", err)
-        return dict(XAI_VOICES)
+        from .voices import fallback_voices
+
+        return fallback_voices()
 
 
 class SpaceXAIConfigFlow(ConfigFlow, domain=DOMAIN):
@@ -449,7 +435,7 @@ class SpaceXAIOptionsFlow(OptionsFlow):
         include_name: bool = True,
     ) -> vol.Schema:
         voice_options = {
-            voice_id: f"{info['name']} ({info['type']}) - {info['tone']}"
+            voice_id: format_voice_label(voice_id, info)
             for voice_id, info in voices.items()
         }
         language_options = {lang: LANGUAGE_NAMES.get(lang, lang) for lang in SUPPORT_LANGUAGES}

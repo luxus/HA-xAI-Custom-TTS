@@ -32,6 +32,11 @@ def test_manifest_domain_and_platforms() -> None:
     assert "application_credentials" not in MANIFEST.get("dependencies", [])
 
 
+def test_manifest_points_at_ha_spacexai_repo() -> None:
+    assert MANIFEST["documentation"] == "https://github.com/luxus/ha-spacexai"
+    assert MANIFEST["issue_tracker"] == "https://github.com/luxus/ha-spacexai/issues"
+
+
 def test_hacs_keeps_repo_layout() -> None:
     assert HACS["name"] == "SpaceXAI"
     assert HACS["filename"] == "spacexai.zip"

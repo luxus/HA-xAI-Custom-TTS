@@ -5,14 +5,14 @@
 </p>
 
 [![hacs_badge](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://github.com/custom-components/hacs)
-[![GitHub release](https://img.shields.io/github/release/luxus/HA-xAI-Custom-TTS.svg)](https://github.com/luxus/HA-xAI-Custom-TTS/releases/)
+[![GitHub release](https://img.shields.io/github/release/luxus/ha-spacexai.svg)](https://github.com/luxus/ha-spacexai/releases/)
 
 **SpaceXAI** is the Home Assistant umbrella for Grok: **one config entry after OAuth**, then platforms load under that entry.
 
 | Layer | Repo | Role |
 | --- | --- | --- |
 | 1. Auth library | [`luxus/ha-spacexai-auth`](https://github.com/luxus/ha-spacexai-auth) | Device-code + PKCE, `ensure_fresh`, `TokenSet` entry keys. No HA domain. |
-| 2. **This integration** | `luxus/HA-xAI-Custom-TTS` (HACS name **SpaceXAI**) | Domain **`spacexai`**. Conversation **Grok** + **TTS** + **STT**. |
+| 2. **This integration** | [`luxus/ha-spacexai`](https://github.com/luxus/ha-spacexai) (HACS name **SpaceXAI**) | Domain **`spacexai`**. Conversation **Grok** + **TTS** + **STT**. |
 | 3. Router | [`luxus/ha-conversation-jev`](https://github.com/luxus/ha-conversation-jev) (`jev_assist`) | Thin classifier / light fast-path only. On `grok` routes it should hand off to **this** conversation agent. |
 
 This is **not** Home Assistant Application Credentials.
@@ -47,7 +47,7 @@ All three use the same `Authorization: Bearer …` from `ensure_fresh` / `ha_spa
 
 Within the new domain, config-entry **version 2** stores `auth_method` (`oauth` \| `api_key`) plus `TokenSet` keys (`access_token`, `refresh_token`, `expires_at`, `token_type`, `scope`). A v1 API-key-only payload is migrated in `async_migrate_entry` if it is ever loaded under `spacexai`.
 
-The **GitHub / HACS repository URL** stays `luxus/HA-xAI-Custom-TTS` for now.
+The **GitHub / HACS repository URL** is `luxus/ha-spacexai`. The Home Assistant domain remains **`spacexai`**.
 
 ---
 
@@ -129,11 +129,11 @@ Until that handoff ships in `jev_assist`, set the Assist pipeline conversation a
 ### Via HACS (Recommended)
 
 1. Open HACS → **Integrations**
-2. Custom repositories → `https://github.com/luxus/HA-xAI-Custom-TTS` → category **Integration**
+2. Custom repositories → `https://github.com/luxus/ha-spacexai` → category **Integration**
 3. Install **SpaceXAI**, restart Home Assistant
 4. **Settings → Devices & services → Add integration → SpaceXAI**
 
-[![Open your Home Assistant instance and open a repository inside HACS.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=luxus&repository=HA-xAI-Custom-TTS&category=integration)
+[![Open your Home Assistant instance and open a repository inside HACS.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=luxus&repository=ha-spacexai&category=integration)
 
 ### Manual Installation
 
@@ -333,7 +333,7 @@ MIT — see [LICENSE](LICENSE).
 
 ## Support
 
-[GitHub Issues](https://github.com/luxus/HA-xAI-Custom-TTS/issues)
+[GitHub Issues](https://github.com/luxus/ha-spacexai/issues)
 
 ## xAI resources
 

@@ -82,6 +82,8 @@ automation:
             voice: "rex"
             codec: "wav"  # Uncompressed audio
             sample_rate: 44100  # CD quality
+            speed: 0.9
+            text_normalization: true
 
 # Get available voices
 script:

@@ -10,45 +10,50 @@ import async_timeout
 import httpx
 
 from homeassistant.components.tts import TextToSpeechEntity, TtsAudioType, Voice
+from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.helpers.httpx_client import get_async_client
 
 from .const import (
-    DOMAIN,
-    XAI_TTS_URL,
-    XAI_VOICES,
-    DEFAULT_VOICE,
-    DEFAULT_LANGUAGE,
-    DEFAULT_CODEC,
-    DEFAULT_SAMPLE_RATE,
+    ATTR_BIT_RATE,
+    ATTR_CODEC,
+    ATTR_LANGUAGE,
+    ATTR_REPLACE,
+    ATTR_SAMPLE_RATE,
+    ATTR_SPEED,
+    ATTR_TEXT_NORMALIZATION,
+    ATTR_VOICE,
+    CODEC_EXTENSIONS,
     DEFAULT_BIT_RATE,
+    DEFAULT_CODEC,
+    DEFAULT_LANGUAGE,
+    DEFAULT_SAMPLE_RATE,
+    DEFAULT_SPEED,
+    DEFAULT_TEXT_NORMALIZATION,
+    DEFAULT_VOICE,
+    DOMAIN,
     SUPPORT_LANGUAGES,
-    SUPPORT_CODECS,
-    SUPPORT_SAMPLE_RATES,
-    SUPPORT_BIT_RATES,
+    TTS_MAX_RETRIES,
+    TTS_REQUEST_TIMEOUT,
+    TTS_RETRY_STATUS_CODES,
+    XAI_TTS_URL,
 )
+from .tts_request import (
+    build_tts_payload,
+    coerce_bool,
+    describe_http_error,
+    normalize_voice_id,
+    parse_replace,
+    resolve_bit_rate,
+    resolve_codec,
+    resolve_sample_rate,
+    resolve_speed,
+    validate_text,
+)
+from .voices import fallback_voices, fetch_all_voices
 
 _LOGGER = logging.getLogger(__name__)
-
-# Content type mapping for codecs
-CODEC_CONTENT_TYPES = {
-    "mp3": "audio/mpeg",
-    "wav": "audio/wav",
-    "pcm": "audio/pcm",
-    "mulaw": "audio/basic",
-    "alaw": "audio/basic",
-}
-
-# File extension mapping for codecs
-CODEC_EXTENSIONS = {
-    "mp3": "mp3",
-    "wav": "wav",
-    "pcm": "pcm",
-    "mulaw": "au",
-    "alaw": "au",
-}
 
 
 async def async_setup_entry(
@@ -57,14 +62,13 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up xAI TTS platform via config entry."""
-    # Get the API key from the integration data
     if DOMAIN not in hass.data or config_entry.entry_id not in hass.data[DOMAIN]:
         _LOGGER.error("xAI integration not loaded")
         return
-    
+
     entry_data = hass.data[DOMAIN][config_entry.entry_id]
     api_key = entry_data["api_key"]
-    
+
     async_add_entities([XAITTSProvider(hass, api_key, config_entry)])
 
 
@@ -77,6 +81,11 @@ class XAITTSProvider(TextToSpeechEntity):
         self._api_key = api_key
         self._config_entry = config_entry
         self._httpx_client = get_async_client(hass)
+        self._available_voices = fallback_voices()
+
+    async def async_added_to_hass(self) -> None:
+        """Cache built-in + custom voices for Assist voice pickers."""
+        self._available_voices = await fetch_all_voices(self._httpx_client, self._api_key)
 
     @property
     def name(self) -> str:
@@ -100,190 +109,234 @@ class XAITTSProvider(TextToSpeechEntity):
 
     @property
     def supported_options(self) -> list[str]:
-        """Return list of supported options."""
+        """Return list of supported options (HA names mapping 1:1 to API fields)."""
         return [
             "voice_profile",
-            "voice",
-            "language",
-            "codec",
-            "sample_rate",
-            "bit_rate",
+            ATTR_VOICE,
+            ATTR_LANGUAGE,
+            ATTR_CODEC,
+            ATTR_SAMPLE_RATE,
+            ATTR_BIT_RATE,
+            ATTR_SPEED,
+            ATTR_TEXT_NORMALIZATION,
+            ATTR_REPLACE,
         ]
 
     @property
     def default_options(self) -> dict[str, Any]:
         """Return dict of default options."""
         return {
-            "voice": DEFAULT_VOICE,
-            "language": DEFAULT_LANGUAGE,
-            "codec": DEFAULT_CODEC,
-            "sample_rate": DEFAULT_SAMPLE_RATE,
-            "bit_rate": DEFAULT_BIT_RATE,
+            ATTR_VOICE: DEFAULT_VOICE,
+            ATTR_LANGUAGE: DEFAULT_LANGUAGE,
+            ATTR_CODEC: DEFAULT_CODEC,
+            ATTR_SAMPLE_RATE: DEFAULT_SAMPLE_RATE,
+            ATTR_BIT_RATE: DEFAULT_BIT_RATE,
+            ATTR_SPEED: DEFAULT_SPEED,
+            ATTR_TEXT_NORMALIZATION: DEFAULT_TEXT_NORMALIZATION,
         }
 
     @callback
     def async_get_supported_voices(self, language: str) -> list[Voice]:
-        """Return list of supported voices for Assist pipeline."""
-        voices = []
-        
-        # Get voice profiles from config entry
+        """Return voice profiles plus API-listed built-in/custom voices."""
+        voices: list[Voice] = []
+        seen: set[str] = set()
+
         voice_profiles = self._config_entry.options.get("voice_profiles", {})
-        
-        _LOGGER.debug("Getting supported voices for language %s, found %d voice profiles", 
-                     language, len(voice_profiles))
-        
-        # Add each configured voice profile as a selectable voice
         for profile_name, profile_data in voice_profiles.items():
-            voice_id = profile_data.get("voice", DEFAULT_VOICE)
-            
-            # Create a Voice object for this profile
-            # The voice_id in Voice() becomes the identifier used in the Assist pipeline
-            # When selected, it will be passed as the "voice" option to async_get_tts_audio
-            voices.append(
-                Voice(
-                    voice_id=profile_name,  # Use profile name as the voice identifier
-                    name=profile_name,  # Display name in UI
-                )
+            xai_voice = profile_data.get("voice", DEFAULT_VOICE)
+            voices.append(Voice(voice_id=profile_name, name=profile_name))
+            seen.add(profile_name)
+            _LOGGER.debug(
+                "Added voice profile '%s' (xAI voice: %s) to supported voices",
+                profile_name,
+                xai_voice,
             )
-            _LOGGER.debug("Added voice profile '%s' (xAI voice: %s) to supported voices", 
-                         profile_name, voice_id)
-        
-        # If no profiles configured, return empty list to use default
-        if not voices:
-            _LOGGER.debug("No voice profiles configured, Assist will use default voice")
-        
+
+        for voice_id, info in self._available_voices.items():
+            if voice_id in seen:
+                continue
+            label = info.get("name") or voice_id
+            if info.get("source") == "custom":
+                label = f"{label} (custom)"
+            voices.append(Voice(voice_id=voice_id, name=label))
+
         return voices
+
+    def _merge_options(
+        self, options: dict[str, Any]
+    ) -> tuple[dict[str, Any], str | None]:
+        """Merge defaults, optional voice profile, and per-call options."""
+        voice_profiles = self._config_entry.options.get("voice_profiles", {})
+        voice_profile_name = options.get("voice_profile")
+        profile_selected_via_voice = False
+
+        if not voice_profile_name and ATTR_VOICE in options:
+            potential_profile = options[ATTR_VOICE]
+            if potential_profile in voice_profiles:
+                voice_profile_name = potential_profile
+                profile_selected_via_voice = True
+                _LOGGER.debug(
+                    "Voice '%s' matches a voice profile, using profile settings",
+                    potential_profile,
+                )
+
+        overlay = {
+            key: value
+            for key, value in options.items()
+            if key != "voice_profile"
+        }
+        if profile_selected_via_voice:
+            overlay.pop(ATTR_VOICE, None)
+
+        if voice_profile_name:
+            if voice_profile_name in voice_profiles:
+                profile_options = voice_profiles[voice_profile_name].copy()
+                _LOGGER.debug(
+                    "Using voice profile '%s' with settings: %s",
+                    voice_profile_name,
+                    profile_options,
+                )
+                return (
+                    {**self.default_options, **profile_options, **overlay},
+                    voice_profile_name,
+                )
+            _LOGGER.warning(
+                "Voice profile '%s' not found in profiles %s, using default options",
+                voice_profile_name,
+                list(voice_profiles.keys()),
+            )
+
+        return {**self.default_options, **overlay}, voice_profile_name
 
     async def async_get_tts_audio(
         self, message: str, language: str, options: dict[str, Any] | None = None
     ) -> TtsAudioType:
         """Load TTS audio file from xAI."""
-        _LOGGER.debug("TTS request received for message length: %d", len(message))
-        _LOGGER.debug("Language: %s", language) 
-        _LOGGER.debug("Options: %s", options)
-        
         if options is None:
             options = {}
-        
-        # Get voice profiles from config entry
-        voice_profiles = self._config_entry.options.get("voice_profiles", {})
-        
-        # Check if voice_profile is explicitly provided
-        voice_profile_name = options.get("voice_profile")
-        
-        # If no explicit voice_profile but "voice" is provided, check if it matches a profile name
-        # This handles when Assist pipeline passes the selected voice
-        if not voice_profile_name and "voice" in options:
-            potential_profile = options["voice"]
-            if potential_profile in voice_profiles:
-                voice_profile_name = potential_profile
-                _LOGGER.debug("Voice '%s' matches a voice profile, using profile settings", potential_profile)
-        
-        _LOGGER.debug("Voice profile requested: %s", voice_profile_name)
-        
-        if voice_profile_name:
-            _LOGGER.debug("Available voice profiles: %s", list(voice_profiles.keys()))
-            if voice_profile_name in voice_profiles:
-                # Use voice profile settings directly - these are the user's intended settings
-                profile_options = voice_profiles[voice_profile_name].copy()
-                merged_options = {**self.default_options, **profile_options}
-                _LOGGER.debug("Using voice profile '%s' with settings: %s", voice_profile_name, profile_options)
-            else:
-                _LOGGER.warning("Voice profile '%s' not found in profiles %s, using default options", 
-                              voice_profile_name, list(voice_profiles.keys()))
-                merged_options = {**self.default_options, **options}
-        else:
-            # Merge provided options with defaults
-            merged_options = {**self.default_options, **options}
-            _LOGGER.debug("No voice profile specified, using merged options")
-        
-        voice_id = merged_options.get("voice", DEFAULT_VOICE)
-        lang = merged_options.get("language", language)
-        codec = merged_options.get("codec", DEFAULT_CODEC)
-        sample_rate = merged_options.get("sample_rate", DEFAULT_SAMPLE_RATE)
-        bit_rate = merged_options.get("bit_rate", DEFAULT_BIT_RATE)
-        
-        # Validate voice_id
-        if voice_id not in XAI_VOICES:
-            _LOGGER.warning("Invalid voice_id '%s', using default '%s'", voice_id, DEFAULT_VOICE)
-            voice_id = DEFAULT_VOICE
-        
-        # Validate codec
-        if codec not in SUPPORT_CODECS:
-            _LOGGER.warning("Invalid codec '%s', using default '%s'", codec, DEFAULT_CODEC)
-            codec = DEFAULT_CODEC
-        
-        # Validate sample rate
-        if sample_rate not in SUPPORT_SAMPLE_RATES:
-            _LOGGER.warning("Invalid sample_rate '%s', using default '%s'", sample_rate, DEFAULT_SAMPLE_RATE)
-            sample_rate = DEFAULT_SAMPLE_RATE
-        
-        # Validate bit rate (MP3 only)
-        if codec == "mp3" and bit_rate not in SUPPORT_BIT_RATES:
-            _LOGGER.warning("Invalid bit_rate '%s', using default '%s'", bit_rate, DEFAULT_BIT_RATE)
-            bit_rate = DEFAULT_BIT_RATE
-        
+
+        _LOGGER.debug(
+            "TTS request received for message length: %d language=%s options=%s",
+            len(message),
+            language,
+            options,
+        )
+
         try:
-            with async_timeout.timeout(30):
-                # Prepare request
-                headers = {
-                    "Authorization": f"Bearer {self._api_key}",
-                    "Content-Type": "application/json",
-                }
-                
-                payload = {
-                    "text": message,
-                    "voice_id": voice_id,
-                    "language": lang,
-                    "output_format": {
-                        "codec": codec,
-                        "sample_rate": sample_rate,
-                    },
-                }
-                
-                # Add bit_rate for MP3 codec
-                if codec == "mp3":
-                    payload["output_format"]["bit_rate"] = bit_rate
-                
-                _LOGGER.debug("Sending TTS request to xAI: voice=%s, language=%s, codec=%s, sample_rate=%s", 
-                             voice_id, lang, codec, sample_rate)
-                
-                # Make the API request
-                response = await self._httpx_client.post(
-                    XAI_TTS_URL,
-                    headers=headers,
-                    json=payload,
-                    timeout=30.0,
-                )
-                
-                response.raise_for_status()
-                
-                audio_bytes = response.content
-                
-                if not audio_bytes:
-                    _LOGGER.error("No audio data received from xAI")
-                    return None
-                
-                _LOGGER.info(
-                    "Successfully generated %d bytes of audio for voice %s (codec: %s)%s",
-                    len(audio_bytes),
-                    voice_id,
-                    codec,
-                    f" using profile '{voice_profile_name}'" if voice_profile_name else ""
-                )
-                
-                # Return with appropriate extension
-                return (CODEC_EXTENSIONS.get(codec, "mp3"), audio_bytes)
-                
+            validate_text(message)
+        except ValueError as err:
+            _LOGGER.error("Invalid TTS text: %s", err)
+            return None
+
+        merged_options, voice_profile_name = self._merge_options(options)
+
+        voice_id = normalize_voice_id(
+            merged_options.get(ATTR_VOICE, DEFAULT_VOICE), DEFAULT_VOICE
+        )
+        lang = merged_options.get(ATTR_LANGUAGE, language) or language
+        codec = resolve_codec(merged_options.get(ATTR_CODEC, DEFAULT_CODEC))
+        sample_rate = resolve_sample_rate(
+            merged_options.get(ATTR_SAMPLE_RATE, DEFAULT_SAMPLE_RATE)
+        )
+        bit_rate = resolve_bit_rate(
+            merged_options.get(ATTR_BIT_RATE, DEFAULT_BIT_RATE), codec
+        )
+        speed = resolve_speed(merged_options.get(ATTR_SPEED, DEFAULT_SPEED))
+        text_normalization = coerce_bool(
+            merged_options.get(ATTR_TEXT_NORMALIZATION, DEFAULT_TEXT_NORMALIZATION),
+            DEFAULT_TEXT_NORMALIZATION,
+        )
+
+        try:
+            replace = parse_replace(merged_options.get(ATTR_REPLACE))
+        except ValueError as err:
+            _LOGGER.error("Invalid replace map: %s", err)
+            return None
+
+        payload = build_tts_payload(
+            text=message,
+            voice_id=voice_id,
+            language=lang,
+            codec=codec,
+            sample_rate=sample_rate,
+            bit_rate=bit_rate,
+            speed=speed,
+            text_normalization=text_normalization,
+            replace=replace,
+        )
+
+        headers = {
+            "Authorization": f"Bearer {self._api_key}",
+            "Content-Type": "application/json",
+        }
+
+        try:
+            with async_timeout.timeout(TTS_REQUEST_TIMEOUT * TTS_MAX_RETRIES + 8):
+                audio_bytes = await self._post_tts(headers, payload, voice_id)
         except asyncio.TimeoutError:
             _LOGGER.error("Timeout generating TTS audio")
-            return None
-        except httpx.HTTPStatusError as err:
-            _LOGGER.error("xAI API error: %s - %s", err.response.status_code, err.response.text)
             return None
         except httpx.RequestError as err:
             _LOGGER.error("Error connecting to xAI API: %s", err)
             return None
-        except Exception as err:
+        except Exception as err:  # noqa: BLE001
             _LOGGER.error("Error generating TTS audio: %s", err)
             return None
+
+        if not audio_bytes:
+            return None
+
+        _LOGGER.info(
+            "Successfully generated %d bytes of audio for voice %s (codec: %s)%s",
+            len(audio_bytes),
+            voice_id,
+            codec,
+            f" using profile '{voice_profile_name}'" if voice_profile_name else "",
+        )
+        return (CODEC_EXTENSIONS.get(codec, "mp3"), audio_bytes)
+
+    async def _post_tts(
+        self, headers: dict[str, str], payload: dict[str, Any], voice_id: str
+    ) -> bytes | None:
+        """POST /v1/tts with retries on 429/500/503."""
+        last_error = "Max retries exceeded"
+        for attempt in range(TTS_MAX_RETRIES):
+            _LOGGER.debug(
+                "Sending TTS request to xAI: voice=%s language=%s codec=%s "
+                "sample_rate=%s speed=%s text_normalization=%s attempt=%s",
+                voice_id,
+                payload.get("language"),
+                payload.get("output_format", {}).get("codec"),
+                payload.get("output_format", {}).get("sample_rate"),
+                payload.get("speed"),
+                payload.get("text_normalization"),
+                attempt + 1,
+            )
+            response = await self._httpx_client.post(
+                XAI_TTS_URL,
+                headers=headers,
+                json=payload,
+                timeout=TTS_REQUEST_TIMEOUT,
+            )
+            if response.status_code == 200:
+                audio_bytes = response.content
+                if not audio_bytes:
+                    _LOGGER.error("No audio data received from xAI")
+                    return None
+                return audio_bytes
+
+            last_error = describe_http_error(response.status_code, response.text)
+            if (
+                response.status_code in TTS_RETRY_STATUS_CODES
+                and attempt < TTS_MAX_RETRIES - 1
+            ):
+                wait = 2**attempt
+                _LOGGER.warning("%s; retrying in %ss", last_error, wait)
+                await asyncio.sleep(wait)
+                continue
+
+            _LOGGER.error("%s", last_error)
+            return None
+
+        _LOGGER.error("%s", last_error)
+        return None

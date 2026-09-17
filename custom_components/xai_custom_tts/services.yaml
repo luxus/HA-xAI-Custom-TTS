@@ -1,6 +1,6 @@
 get_voices:
   name: Get Voices
-  description: Retrieve all available voices from xAI API with optional filtering
+  description: Retrieve built-in and custom xAI voices (GET /v1/tts/voices and GET /v1/custom-voices) with optional filtering
   fields:
     search_text:
       name: Search Text

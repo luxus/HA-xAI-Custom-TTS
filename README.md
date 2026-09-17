@@ -10,15 +10,15 @@
 A xAI (Grok) TTS integration for Home Assistant that provides voice synthesis using xAI's Text-to-Speech API and integrates with Home Assistant's native TTS platform.
 
 This custom component provides:
-1. **Get Voices Service** - Retrieve available xAI voices (Eve, Ara, Rex, Sal, Leo)
-2. **Native TTS Platform** - Full integration with Home Assistant's TTS system
-3. **Voice Profile Management** - Create, modify, and delete named voice profiles with full audio format control
+1. **Get Voices Service** - Retrieve built-in voices from `GET /v1/tts/voices` plus your team's custom voices from `GET /v1/custom-voices`
+2. **Native TTS Platform** - Full integration with Home Assistant's TTS system (`POST /v1/tts`, API-key auth)
+3. **Voice Profile Management** - Create, modify, and delete named voice profiles with codec, speed, and text-normalization control
 4. **Flexible Output Formats** - MP3, WAV, PCM, and telephony codecs (G.711 μ-law/A-law) with configurable sample rates
 
 ### Why use this instead of other TTS integrations?
-- 🎙️ **Simple & Clean** – xAI provides 5 high-quality voices without complex parameter tuning
+- 🎙️ **API-listed voices** – Built-in roster from xAI plus custom `voice_id`s from the console
 - 🌍 **21 Languages** – Natural pronunciation with auto-detection support
-- 🔧 **Voice Profiles** – Define multiple voice configurations with codec, sample rate, and bit rate settings
+- 🔧 **Voice Profiles** – Define multiple voice configurations with codec, sample rate, bit rate, speed, and text normalization
 - 📞 **Telephony Ready** – Native G.711 codec support for SIP/PBX integration
 - 🚀 **Enterprise Ready** – SOC 2 Type II, HIPAA eligible, GDPR compliant
 
@@ -31,8 +31,9 @@ This custom component provides:
 > **📝 Note:** The default TTS entity ID is `tts.xai_custom_tts`. This is used in all the examples below.
 
 ### Voice Discovery
-- **5 Distinct Voices**: Eve (energetic female), Ara (warm female), Rex (professional male), Sal (neutral), Leo (authoritative male)
-- **Voice Search**: Search voices by name, type, tone, or description
+- **Built-in voices**: Loaded live from `GET /v1/tts/voices` (Eve, Ara, Rex, Sal, Leo, plus additional documented IDs such as Luna, Carina, Atlas, …)
+- **Custom voices**: Team-scoped IDs from `GET /v1/custom-voices` (or paste a console Copy Voice ID). Unknown IDs are sent through to the API; a `404` is logged rather than silently falling back to Eve
+- **Voice Search**: Search voices by id, name, type, tone, description, or source (`builtin` / `custom`)
 - **Multi-Language Support**: 21 languages including auto-detection
 
 ### Audio Format Options
@@ -103,14 +104,18 @@ After installation, you can create and manage voice profiles through the Home As
 1. In the Voice Profile Management interface, select **"Add New Voice Profile"**
 2. Fill out the profile details:
    - **Profile Name**: A descriptive name for your profile (e.g., "News Reader", "Bedtime Story")
-   - **Voice**: Choose from the 5 xAI voices
+   - **Voice**: Choose a built-in or custom `voice_id` (list is fetched from the API)
    - **Language**: Select the language code (default: "en", or use "auto" for auto-detection)
    - **Audio Codec**: Select output format (MP3, WAV, PCM, G.711 μ-law, G.711 A-law)
    - **Sample Rate**: Audio quality (24000 Hz default, lower for telephony)
    - **Bit Rate**: Compression quality for MP3 (128000 bps default)
+   - **Speed**: Speech multiplier `0.7`–`1.5` (default `1.0`)
+   - **Normalize Text**: Expand numbers/abbreviations/symbols into spoken form (default off)
 3. Click **Submit** to save the profile
 
 #### Available Voices
+
+Built-in IDs are case-insensitive (`eve` / `Eve`). Personality copy for the original five:
 
 | Voice | Type | Tone | Best For |
 |-------|------|------|----------|
@@ -119,6 +124,8 @@ After installation, you can create and manage voice profiles through the Home As
 | **Rex** | Male | Confident, clear | Professional announcements, business content |
 | **Sal** | Neutral | Smooth, balanced | General purpose, versatile contexts |
 | **Leo** | Male | Authoritative, strong | Instructions, alerts, important announcements |
+
+Additional built-in voices (Carina, Luna, Atlas, and others) appear in the profile dropdown and `xai_custom_tts.get_voices` when the API returns them. Custom voices show as `(custom)` and use the 8-character id from the console.
 
 #### Audio Format Recommendations
 
@@ -211,11 +218,13 @@ data:
   message: "Good morning! The weather today is sunny."
   media_player_entity_id: media_player.living_room_speaker
   options:
-    voice: "rex"  # xAI voice ID: eve, ara, rex, sal, leo
+    voice: "rex"  # any built-in or custom voice_id
     language: "en"
     codec: "mp3"
     sample_rate: 24000
     bit_rate: 128000
+    speed: 1.2
+    text_normalization: true
 ```
 
 #### Telephony-Ready Output (G.711)
@@ -331,18 +340,42 @@ automation:
 When using Home Assistant's native TTS services, you can pass these options:
 
 - **voice_profile** (optional): Use a saved voice profile by name (overrides individual settings)
-- **voice** (optional): xAI voice ID to use (default: "eve")
-  - Options: `eve`, `ara`, `rex`, `sal`, `leo`
-- **language** (optional): Language code (default: "en")
+- **voice** (optional): xAI `voice_id` (default: `"eve"`). Built-in IDs from `GET /v1/tts/voices` or a custom id from `GET /v1/custom-voices` / the console. Unknown IDs are not rewritten to Eve; the API returns `404`.
+- **language** (optional): Language code (default: `"en"`)
   - Options: `auto`, `en`, `ar-EG`, `ar-SA`, `ar-AE`, `bn`, `zh`, `fr`, `de`, `hi`, `id`, `it`, `ja`, `ko`, `pt-BR`, `pt-PT`, `ru`, `es-MX`, `es-ES`, `tr`, `vi`
-- **codec** (optional): Audio codec (default: "mp3")
+- **codec** (optional): Audio codec (default: `"mp3"`)
   - Options: `mp3`, `wav`, `pcm`, `mulaw`, `alaw`
-- **sample_rate** (optional): Sample rate in Hz (default: 24000)
+- **sample_rate** (optional): Sample rate in Hz (default: `24000`)
   - Options: `8000`, `16000`, `22050`, `24000`, `44100`, `48000`
-- **bit_rate** (optional): Bit rate for MP3 in bps (default: 128000)
+- **bit_rate** (optional): Bit rate for MP3 in bps (default: `128000`)
   - Options: `32000`, `64000`, `96000`, `128000`, `192000`
+- **speed** (optional): Speech speed multiplier (default: `1.0`, range `0.7`–`1.5`)
+- **text_normalization** (optional): Normalize written-form numbers/abbreviations before synthesis (default: `false`)
+- **replace** (optional): Pronunciation map (`{"Acme Mobile": "Acme Mobull"}` or IPA values like `{"nginx": "/ˈɛndʒɪn ˈɛks/"}`). Also accepts a JSON object string.
 
 **Note:** When using `voice_profile`, the profile settings are applied first, then any additional options override specific profile settings.
+
+Unary `POST /v1/tts` text is limited to **60,000 characters**. Longer content needs the streaming WebSocket (`wss://api.x.ai/v1/tts`), which this integration does not implement yet.
+
+### API fields not exposed in Home Assistant
+
+These exist on the xAI unary/streaming TTS API but are a poor fit for HA's audio-bytes TTS entity:
+
+| Field | Why it is omitted |
+|-------|-------------------|
+| `with_timestamps` | Response becomes a JSON envelope (`audio` + `audio_timestamps`) instead of raw audio |
+| `optimize_streaming_latency` | Only helps streaming time-to-first-audio; HA waits for the complete file |
+
+TTS WebSocket streaming (`wss://api.x.ai/v1/tts`) is a different product from Speech-to-Speech realtime (`wss://api.x.ai/v1/realtime`). Neither client is included here.
+
+### Errors and retries
+
+| HTTP | Meaning | Integration behavior |
+|------|---------|----------------------|
+| 400 | Bad request (empty/too-long text, bad codec/rate/`replace`) | Logged, no retry |
+| 401 | Missing/invalid API key | Logged, no retry |
+| 404 | Unknown `voice_id` | Logged, no retry |
+| 429 / 503 / 500 | Rate limit / unavailable / server error | Retry up to 3 times with exponential backoff (1s, 2s, 4s) |
 
 ---
 
@@ -352,11 +385,10 @@ When using xAI Custom TTS with AI-generated messages (via the [AI Contextual TTS
 
 ### Inline Tags
 Place these where the expression should occur:
-- `[pause]`, `[long-pause]` - Dramatic pauses
-- `[laugh]`, `[chuckle]`, `[giggle]` - Laughter
-- `[cry]`, `[tsk]`, `[tongue-click]`, `[lip-smack]` - Vocal expressions
-- `[breath]`, `[inhale]`, `[exhale]`, `[sigh]` - Breathing sounds
-- `[hum-tune]` - Humming
+- Pauses: `[pause]`, `[long-pause]`, `[hum-tune]`
+- Laughter & crying: `[laugh]`, `[chuckle]`, `[giggle]`, `[cry]`
+- Mouth sounds: `[tsk]`, `[tongue-click]`, `[lip-smack]`
+- Breathing: `[breath]`, `[inhale]`, `[exhale]`, `[sigh]`
 
 ### Wrapping Tags
 Wrap text sections to change delivery style:
@@ -371,7 +403,6 @@ Wrap text sections to change delivery style:
 - `<fast>text</fast>` - Faster speed
 - `<sing-song>text</sing-song>` - Sing-song style
 - `<singing>text</singing>` - Full singing
-- `<laugh-speak>text</laugh-speak>` - Laughing while speaking
 - `<emphasis>text</emphasis>` - Emphasized words
 
 ### Example with Speech Tags
@@ -394,8 +425,7 @@ Inline tags: [pause], [long-pause], [laugh], [chuckle], [giggle], [cry], [tsk],
 [tongue-click], [lip-smack], [breath], [inhale], [exhale], [sigh], [hum-tune]
 
 Wrapping tags: <soft>, <whisper>, <loud>, <build-intensity>, <decrease-intensity>,
-<higher-pitch>, <lower-pitch>, <slow>, <fast>, <sing-song>, <singing>, 
-<laugh-speak>, <emphasis>
+<higher-pitch>, <lower-pitch>, <slow>, <fast>, <sing-song>, <singing>, <emphasis>
 
 Respond ONLY with the raw spoken text including any speech tags.
 No markdown, no quotes, no formatting, no explanations.
@@ -415,7 +445,11 @@ No markdown, no quotes, no formatting, no explanations.
 
 ### API Errors
 - Verify your xAI API key is correct from [console.x.ai](https://console.x.ai/team/default/api-keys)
-- Check Home Assistant logs for detailed error messages
+- `401` — key missing/invalid
+- `404` — unknown `voice_id` (check `GET /v1/tts/voices` or `GET /v1/custom-voices`)
+- `429` / `503` / `500` — retried automatically with backoff; check logs if it still fails
+- `400` — empty text, over 60,000 characters, or invalid codec / `replace` map
+- Check Home Assistant logs for the mapped error line
 - Ensure your internet connection is stable
 
 ### Audio Quality Issues
@@ -433,6 +467,8 @@ No markdown, no quotes, no formatting, no explanations.
       ├── manifest.json
       ├── config_flow.py
       ├── tts.py
+      ├── tts_request.py
+      ├── voices.py
       ├── const.py
       ├── strings.json
       ├── services.yaml
@@ -443,6 +479,14 @@ No markdown, no quotes, no formatting, no explanations.
 ---
 
 ## 📝 Changelog
+
+### Version 1.1.0
+- Align unary TTS options with current xAI docs: `speed`, `text_normalization`, `replace`
+- Accept API-listed and custom `voice_id`s instead of rewriting unknowns to Eve
+- Fetch `GET /v1/tts/voices` and `GET /v1/custom-voices` for profiles / `get_voices`
+- Map `alaw` to `audio/alaw`; document 60k character limit and HTTP 400/401/404/429/503
+- Rename dead realtime WS constant to `wss://api.x.ai/v1/tts` (client not implemented)
+- Speech tags: drop undocumented `<laugh-speak>`
 
 ### Version 1.0.0
 - **Initial Release**: Migrated from ElevenLabs to xAI Voice API
@@ -482,6 +526,8 @@ If you encounter any issues, please report them on the [GitHub Issues page](http
 
 ## xAI Voice Resources
 
-- [xAI Voice API Documentation](https://docs.x.ai/docs/api-reference#text-to-speech)
+- [xAI Text to Speech](https://docs.x.ai/developers/model-capabilities/audio/text-to-speech)
+- [List voices](https://docs.x.ai/developers/rest-api-reference/inference/voice)
+- [Custom voices](https://docs.x.ai/developers/model-capabilities/audio/custom-voices)
 - [xAI Voice Demos](https://x.ai/api/voice)
 - [Get xAI API Key](https://console.x.ai/team/default/api-keys)

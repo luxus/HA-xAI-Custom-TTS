@@ -15,21 +15,23 @@ from homeassistant.helpers.httpx_client import get_async_client
 
 from .const import (
     DOMAIN,
-    XAI_VOICES,
     XAI_VOICES_URL,
-    XAI_TTS_URL,
     DEFAULT_VOICE,
     DEFAULT_LANGUAGE,
     DEFAULT_CODEC,
     DEFAULT_SAMPLE_RATE,
     DEFAULT_BIT_RATE,
+    DEFAULT_SPEED,
+    DEFAULT_TEXT_NORMALIZATION,
+    SPEED_MIN,
+    SPEED_MAX,
     SUPPORT_LANGUAGES,
-    SUPPORT_CODECS,
-    SUPPORT_SAMPLE_RATES,
-    SUPPORT_BIT_RATES,
     LANGUAGE_NAMES,
     CODEC_NAMES,
+    SUPPORT_CODECS,
 )
+from .tts_request import coerce_bool
+from .voices import fetch_all_voices, format_voice_label
 
 # Schema field mappings for user-friendly labels
 PROFILE_NAME_KEY = "Profile Name"
@@ -38,6 +40,8 @@ LANGUAGE_KEY = "Language"
 CODEC_KEY = "Audio Codec"
 SAMPLE_RATE_KEY = "Sample Rate (Hz)"
 BIT_RATE_KEY = "Bit Rate (bps, MP3 only)"
+SPEED_KEY = "Speed"
+TEXT_NORMALIZATION_KEY = "Normalize Text"
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -47,45 +51,60 @@ def _map_form_data_to_profile(user_input: dict[str, Any]) -> dict[str, Any]:
     # Get values (they come as strings from the form)
     sample_rate = user_input.get(SAMPLE_RATE_KEY, str(DEFAULT_SAMPLE_RATE))
     bit_rate = user_input.get(BIT_RATE_KEY, str(DEFAULT_BIT_RATE))
-    
-    # Convert string to int for storage
+    speed = user_input.get(SPEED_KEY, DEFAULT_SPEED)
+
     try:
         sample_rate = int(sample_rate)
     except (ValueError, TypeError):
         sample_rate = DEFAULT_SAMPLE_RATE
-        
+
     try:
         bit_rate = int(bit_rate)
     except (ValueError, TypeError):
         bit_rate = DEFAULT_BIT_RATE
-    
+
+    try:
+        speed = float(speed)
+    except (ValueError, TypeError):
+        speed = DEFAULT_SPEED
+    if speed < SPEED_MIN or speed > SPEED_MAX:
+        speed = DEFAULT_SPEED
+
     return {
         "voice": user_input.get(VOICE_ID_KEY, DEFAULT_VOICE),
         "language": user_input.get(LANGUAGE_KEY, DEFAULT_LANGUAGE),
         "codec": user_input.get(CODEC_KEY, DEFAULT_CODEC),
         "sample_rate": sample_rate,
         "bit_rate": bit_rate,
+        "speed": speed,
+        "text_normalization": coerce_bool(
+            user_input.get(TEXT_NORMALIZATION_KEY, DEFAULT_TEXT_NORMALIZATION),
+            DEFAULT_TEXT_NORMALIZATION,
+        ),
     }
 
 
 def _map_profile_to_form_data(profile_name: str, profile_data: dict[str, Any]) -> dict[str, Any]:
     """Map profile data with standard keys to form data with friendly keys."""
-    # Ensure numeric fields are strings for form defaults (frontend uses string keys)
     sample_rate = profile_data.get("sample_rate", DEFAULT_SAMPLE_RATE)
     bit_rate = profile_data.get("bit_rate", DEFAULT_BIT_RATE)
-    
-    # Convert to string for form default
+    speed = profile_data.get("speed", DEFAULT_SPEED)
+
     if isinstance(sample_rate, (int, float)):
         sample_rate = str(int(sample_rate))
     elif isinstance(sample_rate, str):
-        # Already a string, make sure it's clean
         sample_rate = str(int(sample_rate))
-        
+
     if isinstance(bit_rate, (int, float)):
         bit_rate = str(int(bit_rate))
     elif isinstance(bit_rate, str):
         bit_rate = str(int(bit_rate))
-    
+
+    try:
+        speed = float(speed)
+    except (ValueError, TypeError):
+        speed = DEFAULT_SPEED
+
     return {
         PROFILE_NAME_KEY: profile_name,
         VOICE_ID_KEY: profile_data.get("voice", DEFAULT_VOICE),
@@ -93,10 +112,93 @@ def _map_profile_to_form_data(profile_name: str, profile_data: dict[str, Any]) -
         CODEC_KEY: profile_data.get("codec", DEFAULT_CODEC),
         SAMPLE_RATE_KEY: sample_rate,
         BIT_RATE_KEY: bit_rate,
+        SPEED_KEY: speed,
+        TEXT_NORMALIZATION_KEY: coerce_bool(
+            profile_data.get("text_normalization", DEFAULT_TEXT_NORMALIZATION),
+            DEFAULT_TEXT_NORMALIZATION,
+        ),
     }
 
 
+def _voice_select_options(
+    voices: dict[str, dict[str, Any]], extra_voice_id: str | None = None
+) -> dict[str, str]:
+    """Build a vol.In mapping of voice_id -> label, keeping saved custom IDs."""
+    options = {
+        voice_id: format_voice_label(voice_id, info) for voice_id, info in voices.items()
+    }
+    if extra_voice_id and extra_voice_id not in options:
+        options[extra_voice_id] = f"{extra_voice_id} (saved)"
+    return options
+
+
+SAMPLE_RATE_OPTIONS = {
+    "8000": "8000 Hz (Telephone quality)",
+    "16000": "16000 Hz (Wideband)",
+    "22050": "22050 Hz (Radio quality)",
+    "24000": "24000 Hz (xAI default)",
+    "44100": "44100 Hz (CD quality)",
+    "48000": "48000 Hz (Professional)",
+}
+BIT_RATE_OPTIONS = {
+    "32000": "32 kbps",
+    "64000": "64 kbps",
+    "96000": "96 kbps",
+    "128000": "128 kbps (Default)",
+    "192000": "192 kbps",
+}
+
+
 USER_STEP_SCHEMA = vol.Schema({vol.Required(CONF_API_KEY): str})
+
+
+def _profile_form_schema(
+    *,
+    voice_options: dict[str, str],
+    defaults: dict[str, Any] | None = None,
+    include_name: bool = True,
+) -> vol.Schema:
+    """Shared add/edit profile schema including speed and text_normalization."""
+    language_options = {lang: LANGUAGE_NAMES.get(lang, lang) for lang in SUPPORT_LANGUAGES}
+    codec_options = {codec: CODEC_NAMES.get(codec, codec) for codec in SUPPORT_CODECS}
+    defaults = defaults or {}
+
+    fields: dict[Any, Any] = {}
+    if include_name:
+        name_default = defaults.get(PROFILE_NAME_KEY)
+        if name_default is None:
+            fields[vol.Required(PROFILE_NAME_KEY)] = str
+        else:
+            fields[vol.Required(PROFILE_NAME_KEY, default=name_default)] = str
+
+    fields[vol.Required(VOICE_ID_KEY, default=defaults.get(VOICE_ID_KEY, DEFAULT_VOICE))] = vol.In(
+        voice_options
+    )
+    fields[vol.Optional(LANGUAGE_KEY, default=defaults.get(LANGUAGE_KEY, DEFAULT_LANGUAGE))] = (
+        vol.In(language_options)
+    )
+    fields[vol.Optional(CODEC_KEY, default=defaults.get(CODEC_KEY, DEFAULT_CODEC))] = vol.In(
+        codec_options
+    )
+    fields[
+        vol.Optional(
+            SAMPLE_RATE_KEY,
+            default=str(defaults.get(SAMPLE_RATE_KEY, DEFAULT_SAMPLE_RATE)),
+        )
+    ] = vol.In(SAMPLE_RATE_OPTIONS)
+    fields[
+        vol.Optional(BIT_RATE_KEY, default=str(defaults.get(BIT_RATE_KEY, DEFAULT_BIT_RATE)))
+    ] = vol.In(BIT_RATE_OPTIONS)
+    fields[
+        vol.Optional(SPEED_KEY, default=defaults.get(SPEED_KEY, DEFAULT_SPEED))
+    ] = vol.All(vol.Coerce(float), vol.Range(min=SPEED_MIN, max=SPEED_MAX))
+    fields[
+        vol.Optional(
+            TEXT_NORMALIZATION_KEY,
+            default=defaults.get(TEXT_NORMALIZATION_KEY, DEFAULT_TEXT_NORMALIZATION),
+        )
+    ] = bool
+    return vol.Schema(fields)
 
 
 async def validate_api_key(hass: HomeAssistant, api_key: str) -> bool:
@@ -125,45 +227,9 @@ async def validate_api_key(hass: HomeAssistant, api_key: str) -> bool:
         return False
 
 
-async def fetch_xai_voices(hass: HomeAssistant, api_key: str) -> dict[str, dict[str, str]]:
-    """Fetch available voices from xAI API."""
-    httpx_client = get_async_client(hass)
-    
-    try:
-        headers = {
-            "Authorization": f"Bearer {api_key}",
-        }
-        
-        response = await httpx_client.get(
-            XAI_VOICES_URL,
-            headers=headers,
-            timeout=10.0,
-        )
-        
-        response.raise_for_status()
-        data = response.json()
-        
-        voices = {}
-        for voice in data.get("voices", []):
-            voice_id = voice.get("voice_id", "").lower()
-            name = voice.get("name", voice_id)
-            voices[voice_id] = {
-                "name": name,
-                "type": "Unknown",
-                "tone": "",
-                "description": f"xAI voice: {name}",
-            }
-        
-        # Merge with cached defaults for known voices
-        for voice_id, info in XAI_VOICES.items():
-            if voice_id in voices:
-                voices[voice_id].update(info)
-        
-        return voices
-        
-    except Exception as err:
-        _LOGGER.warning("Failed to fetch voices from xAI API: %s. Using cached defaults.", err)
-        return XAI_VOICES
+async def fetch_xai_voices(hass: HomeAssistant, api_key: str) -> dict[str, dict[str, Any]]:
+    """Fetch built-in + custom voices from xAI."""
+    return await fetch_all_voices(get_async_client(hass), api_key)
 
 
 class XAICustomTTSConfigFlow(ConfigFlow, domain=DOMAIN):
@@ -275,43 +341,13 @@ class XAIOptionsFlow(OptionsFlow):
                 
                 return self.async_create_entry(title="", data=new_options)
         
-        # Fetch voices from API for up-to-date list
         api_key = self._config_entry.data.get(CONF_API_KEY)
         voices = await fetch_xai_voices(self.hass, api_key)
-        
-        # Build voice options
-        voice_options = {voice_id: f"{info['name']} ({info['type']}) - {info['tone']}" 
-                        for voice_id, info in voices.items()}
-        
-        # Build language options with display names
-        language_options = {lang: LANGUAGE_NAMES.get(lang, lang) for lang in SUPPORT_LANGUAGES}
-        
-        # Build codec options with display names
-        codec_options = {codec: CODEC_NAMES.get(codec, codec) for codec in SUPPORT_CODECS}
-        
+        voice_options = _voice_select_options(voices)
+
         return self.async_show_form(
             step_id="add_profile",
-            data_schema=vol.Schema({
-                vol.Required(PROFILE_NAME_KEY): str,
-                vol.Required(VOICE_ID_KEY, default=DEFAULT_VOICE): vol.In(voice_options),
-                vol.Optional(LANGUAGE_KEY, default=DEFAULT_LANGUAGE): vol.In(language_options),
-                vol.Optional(CODEC_KEY, default=DEFAULT_CODEC): vol.In(codec_options),
-                vol.Optional(SAMPLE_RATE_KEY, default=str(DEFAULT_SAMPLE_RATE)): vol.In({
-                    "8000": "8000 Hz (Telephone quality)",
-                    "16000": "16000 Hz (Wideband)",
-                    "22050": "22050 Hz (Radio quality)",
-                    "24000": "24000 Hz (xAI default)",
-                    "44100": "44100 Hz (CD quality)",
-                    "48000": "48000 Hz (Professional)",
-                }),
-                vol.Optional(BIT_RATE_KEY, default=str(DEFAULT_BIT_RATE)): vol.In({
-                    "32000": "32 kbps",
-                    "64000": "64 kbps",
-                    "96000": "96 kbps",
-                    "128000": "128 kbps (Default)",
-                    "192000": "192 kbps",
-                }),
-            }),
+            data_schema=_profile_form_schema(voice_options=voice_options),
             errors=errors,
         )
 
@@ -330,39 +366,18 @@ class XAIOptionsFlow(OptionsFlow):
                 profile_data = current_profiles[profile_name]
                 form_data = _map_profile_to_form_data(profile_name, profile_data)
                 
-                # Fetch voices from API
                 api_key = self._config_entry.data.get(CONF_API_KEY)
                 voices = await fetch_xai_voices(self.hass, api_key)
-                
-                # Build options
-                voice_options = {voice_id: f"{info['name']} ({info['type']}) - {info['tone']}" 
-                                for voice_id, info in voices.items()}
-                language_options = {lang: LANGUAGE_NAMES.get(lang, lang) for lang in SUPPORT_LANGUAGES}
-                codec_options = {codec: CODEC_NAMES.get(codec, codec) for codec in SUPPORT_CODECS}
-                
+                voice_options = _voice_select_options(
+                    voices, extra_voice_id=form_data.get(VOICE_ID_KEY)
+                )
+
                 return self.async_show_form(
                     step_id="edit_profile",
-                    data_schema=vol.Schema({
-                        vol.Required(PROFILE_NAME_KEY, default=form_data[PROFILE_NAME_KEY]): str,
-                        vol.Required(VOICE_ID_KEY, default=form_data[VOICE_ID_KEY]): vol.In(voice_options),
-                        vol.Optional(LANGUAGE_KEY, default=form_data[LANGUAGE_KEY]): vol.In(language_options),
-                        vol.Optional(CODEC_KEY, default=form_data[CODEC_KEY]): vol.In(codec_options),
-                vol.Optional(SAMPLE_RATE_KEY, default=str(form_data[SAMPLE_RATE_KEY])): vol.In({
-                    "8000": "8000 Hz (Telephone quality)",
-                    "16000": "16000 Hz (Wideband)",
-                    "22050": "22050 Hz (Radio quality)",
-                    "24000": "24000 Hz (xAI default)",
-                    "44100": "44100 Hz (CD quality)",
-                    "48000": "48000 Hz (Professional)",
-                }),
-                vol.Optional(BIT_RATE_KEY, default=str(form_data[BIT_RATE_KEY])): vol.In({
-                    "32000": "32 kbps",
-                    "64000": "64 kbps",
-                    "96000": "96 kbps",
-                    "128000": "128 kbps (Default)",
-                    "192000": "192 kbps",
-                }),
-                    })
+                    data_schema=_profile_form_schema(
+                        voice_options=voice_options,
+                        defaults=form_data,
+                    ),
                 )
         
         return self.async_show_form(

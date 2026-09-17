@@ -31,22 +31,26 @@
       },
       "add_profile": {
         "title": "Add New Voice Profile",
-        "description": "Create a new voice profile. xAI provides 5 distinct voices: Eve (energetic female), Ara (warm female), Rex (professional male), Sal (neutral), and Leo (authoritative male).",
+        "description": "Create a new voice profile. Voices are loaded from GET /v1/tts/voices plus your team's GET /v1/custom-voices IDs.",
         "data": {
           "profile_name": "Profile Name",
           "voice": "Voice",
           "language": "Language",
           "codec": "Audio Codec",
           "sample_rate": "Sample Rate",
-          "bit_rate": "Bit Rate (MP3 only)"
+          "bit_rate": "Bit Rate (MP3 only)",
+          "speed": "Speed",
+          "text_normalization": "Normalize Text"
         },
         "data_description": {
           "profile_name": "A unique name for this voice profile (e.g., 'Morning News', 'Bedtime Stories')",
-          "voice": "xAI voice to use (Eve, Ara, Rex, Sal, or Leo)",
-          "language": "Language code for speech (e.g., en, es, fr, de, auto for auto-detect)",
+          "voice": "Built-in or custom xAI voice_id",
+          "language": "Language code for speech (e.g., en, es-MX, auto for auto-detect)",
           "codec": "Audio codec: MP3 (compressed), WAV (uncompressed), PCM, or telephony formats (G.711)",
           "sample_rate": "Audio sample rate in Hz. Higher = better quality, larger file",
-          "bit_rate": "Bit rate for MP3 compression. Higher = better quality, larger file (MP3 only)"
+          "bit_rate": "Bit rate for MP3 compression. Higher = better quality, larger file (MP3 only)",
+          "speed": "Speech speed multiplier (0.7–1.5, default 1.0)",
+          "text_normalization": "Expand numbers, abbreviations, and symbols into spoken form"
         }
       },
       "modify_profile": {
@@ -68,15 +72,19 @@
           "language": "Language",
           "codec": "Audio Codec",
           "sample_rate": "Sample Rate",
-          "bit_rate": "Bit Rate (MP3 only)"
+          "bit_rate": "Bit Rate (MP3 only)",
+          "speed": "Speed",
+          "text_normalization": "Normalize Text"
         },
         "data_description": {
           "profile_name": "A unique name for this voice profile (e.g., 'Morning News', 'Bedtime Stories')",
-          "voice": "xAI voice to use (Eve, Ara, Rex, Sal, or Leo)",
-          "language": "Language code for speech (e.g., en, es, fr, de, auto for auto-detect)",
+          "voice": "Built-in or custom xAI voice_id",
+          "language": "Language code for speech (e.g., en, es-MX, auto for auto-detect)",
           "codec": "Audio codec: MP3 (compressed), WAV (uncompressed), PCM, or telephony formats (G.711)",
           "sample_rate": "Audio sample rate in Hz. Higher = better quality, larger file",
-          "bit_rate": "Bit rate for MP3 compression. Higher = better quality, larger file (MP3 only)"
+          "bit_rate": "Bit rate for MP3 compression. Higher = better quality, larger file (MP3 only)",
+          "speed": "Speech speed multiplier (0.7–1.5, default 1.0)",
+          "text_normalization": "Expand numbers, abbreviations, and symbols into spoken form"
         }
       },
       "delete_profile": {
@@ -97,7 +105,7 @@
   "services": {
     "get_voices": {
       "name": "Get Voices",
-      "description": "Retrieve all available voices from xAI API"
+      "description": "Retrieve built-in and custom voices from the xAI API"
     }
   }
 }

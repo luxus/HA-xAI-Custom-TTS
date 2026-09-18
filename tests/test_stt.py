@@ -9,6 +9,7 @@ from spacexai.const import (
     PLATFORMS,
     STT_ENTITY_ID,
     STT_LANGUAGE_CODES,
+    STT_MODEL,
     STT_SUPPORTED_LANGUAGES,
     STT_UNIQUE_ID,
     TTS_ENTITY_ID,
@@ -75,10 +76,12 @@ def test_language_map_assist_bcp47() -> None:
 
 def test_form_fields_language_and_format() -> None:
     fields = stt_form_fields(language="en-US")
+    assert fields["model"] == STT_MODEL == "grok-voice-transcribe-2.0"
     assert fields["language"] == "en"
     assert fields["format"] == "true"
     assert "file" not in fields
     raw = stt_form_fields(language=None, audio_format="pcm", sample_rate=16000)
+    assert raw["model"] == "grok-voice-transcribe-2.0"
     assert raw["audio_format"] == "pcm"
     assert raw["sample_rate"] == "16000"
     assert "language" not in raw
@@ -165,6 +168,7 @@ async def test_async_stt_transcribe_posts_multipart_file_last() -> None:
     assert call["headers"] == {"Authorization": "Bearer test-token"}
     assert "Content-Type" not in call["headers"]
     data = call["data"]
+    assert data["model"] == STT_MODEL == "grok-voice-transcribe-2.0"
     assert data["language"] == "en"
     assert data["format"] == "true"
     assert "file" not in data
@@ -174,6 +178,21 @@ async def test_async_stt_transcribe_posts_multipart_file_last() -> None:
     assert filename == "audio.wav"
     assert content_type == "audio/wav"
     assert body[:4] == b"RIFF"
+
+
+async def test_async_stt_transcribe_sends_grok_voice_transcribe_2() -> None:
+    client = FakeHttpxClient(
+        FakeHttpxResponse(200, {"text": "ok"}),
+        expected_url=XAI_STT_URL,
+    )
+    await async_stt_transcribe(
+        client,
+        {"Authorization": "Bearer test-token"},
+        b"RIFF....",
+    )
+    data = client.calls[0]["data"]
+    assert data["model"] == "grok-voice-transcribe-2.0"
+    assert list(data)[0] == "model"
 
 
 async def test_async_stt_transcribe_rejects_http_error() -> None:

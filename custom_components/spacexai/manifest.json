@@ -14,5 +14,5 @@
     "ha-spacexai-auth@git+https://github.com/luxus/ha-spacexai-auth.git@main",
     "voluptuous-openapi"
   ],
-  "version": "2.1.1"
+  "version": "2.1.2"
 }

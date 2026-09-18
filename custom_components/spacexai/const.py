@@ -62,6 +62,9 @@ XAI_TTS_WS_URL: Final = "wss://api.x.ai/v1/tts"
 XAI_STT_WS_URL: Final = "wss://api.x.ai/v1/stt"
 XAI_REALTIME_URL: Final = "wss://api.x.ai/v1/realtime"
 
+# Unary POST /v1/stt — pin transcribe-2.0 (API default is still 1.0).
+STT_MODEL: Final = "grok-voice-transcribe-2.0"
+
 # Unary POST /v1/tts limits
 MAX_TTS_TEXT_CHARS: Final = 60_000
 TTS_REQUEST_TIMEOUT: Final = 120.0

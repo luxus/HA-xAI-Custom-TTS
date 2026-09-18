@@ -15,7 +15,13 @@ import wave
 from collections.abc import Mapping
 from typing import Any
 
-from .const import STT_LANGUAGE_ALIASES, STT_LANGUAGE_CODES, STT_REQUEST_TIMEOUT, XAI_STT_URL
+from .const import (
+    STT_LANGUAGE_ALIASES,
+    STT_LANGUAGE_CODES,
+    STT_MODEL,
+    STT_REQUEST_TIMEOUT,
+    XAI_STT_URL,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -57,8 +63,8 @@ def stt_form_fields(
     audio_format: str | None = None,
     sample_rate: int | None = None,
 ) -> dict[str, str]:
-    """Build multipart *data* fields. ``file`` must be sent separately and last."""
-    fields: dict[str, str] = {}
+    """Build multipart *data* fields (``model`` first). ``file`` must be sent separately and last."""
+    fields: dict[str, str] = {"model": STT_MODEL}
     mapped = map_stt_language(language)
     if mapped:
         fields["language"] = mapped

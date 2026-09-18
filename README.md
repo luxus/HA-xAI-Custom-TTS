@@ -224,7 +224,7 @@ All take a `config_entry` selector for the SpaceXAI entry.
 
 Default STT entity ID is **`stt.spacexai_stt`**.
 
-Home Assistant Assist STT is a collected-stream entity (`SpeechToTextEntity.async_process_audio_stream`): PCM/WAV bytes are gathered, wrapped as WAV when headerless, then posted as multipart `POST https://api.x.ai/v1/stt`. Option fields (`language`, `format=true` for inverse text normalization) are sent **before** `file`, as required by xAI.
+Home Assistant Assist STT is a collected-stream entity (`SpeechToTextEntity.async_process_audio_stream`): PCM/WAV bytes are gathered, wrapped as WAV when headerless, then posted as multipart `POST https://api.x.ai/v1/stt`. Option fields (`model=grok-voice-transcribe-2.0`, `language`, `format=true` for inverse text normalization) are sent **before** `file`, as required by xAI.
 
 - Assist `en-US` / `en-GB` map to xAI `language=en` (and similarly for other BCP-47 tags).
 - Typical Assist input: 16-bit PCM, 16 kHz, mono.
@@ -306,6 +306,10 @@ No live xAI keys are required. Tests cover `TokenSet` config-entry roundtrip, `e
 ---
 
 ## Changelog
+
+### Version 2.1.2
+
+- Pin unary STT to `grok-voice-transcribe-2.0` (`model` multipart field on `POST /v1/stt`). xAI still defaults to `grok-voice-transcribe-1.0` when the field is omitted.
 
 ### Version 2.1.1
 

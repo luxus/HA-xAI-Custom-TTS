@@ -307,6 +307,10 @@ No live xAI keys are required. Tests cover `TokenSet` config-entry roundtrip, `e
 
 ## Changelog
 
+### Version 2.1.1
+
+- Fix Assist handoff crash: converting ChatLog tool calls no longer `hash()`s unhashable Home Assistant `ToolInput` objects (`tool_name` + `tool_args`). Fallback ids are JSON-safe strings (`id` / `tool_call_id` / `call_{n}_{uuid}`).
+
 ### Version 2.1.0
 
 - Conversation feature parity with `grok_conversation`: Assist LLM HASS API tools (real device control), live search + citations, interaction modes (`tools` / `pipeline` / `chat_only`), live model pickers, ask / photo_analysis / home_briefing / image+content services, Voice API probe, usage sensors

@@ -12,6 +12,7 @@ from spacexai.const import (
     PLATFORMS,
     XAI_RESPONSES_URL,
 )
+from spacexai.content_param import convert_content_to_param
 from spacexai.grok import (
     GrokChatError,
     async_chat_complete,
@@ -154,3 +155,49 @@ async def test_async_chat_complete_rejects_empty() -> None:
             {"Authorization": "Bearer x"},
             build_messages("hi"),
         )
+
+
+class ToolInput:
+    """Unhashable stand-in for homeassistant.helpers.llm.ToolInput."""
+
+    def __init__(self, tool_name: str, tool_args: dict) -> None:
+        self.tool_name = tool_name
+        self.tool_args = tool_args
+
+    def __hash__(self) -> int:  # pragma: no cover - must raise like HA ToolInput
+        raise TypeError("unhashable type: 'ToolInput'")
+
+
+class _AssistantWithTools:
+    role = "assistant"
+    content = ""
+
+    def __init__(self, tool_calls: list) -> None:
+        self.tool_calls = tool_calls
+
+
+def test_convert_unhashable_tool_input_without_id() -> None:
+    """HA ToolInput (tool_name + tool_args, no id) must not be hashed."""
+    tool_call = ToolInput("HassTurnOn", {"name": "kitchen light", "domain": "light"})
+    with pytest.raises(TypeError, match="unhashable"):
+        hash(tool_call)
+
+    messages = convert_content_to_param(_AssistantWithTools([tool_call]))
+    assert len(messages) == 1
+    payload = messages[0]["tool_calls"][0]
+    assert isinstance(payload["id"], str)
+    assert payload["id"]
+    assert payload["type"] == "function"
+    assert payload["function"]["name"] == "HassTurnOn"
+    assert "kitchen light" in payload["function"]["arguments"]
+
+
+def test_convert_preserves_existing_tool_call_id() -> None:
+    class NamedCall:
+        id = "call_existing"
+        tool_name = "HassTurnOff"
+        tool_args = {"name": "lamp"}
+
+    payload = convert_content_to_param(_AssistantWithTools([NamedCall()]))[0]["tool_calls"][0]
+    assert payload["id"] == "call_existing"
+    assert payload["function"]["name"] == "HassTurnOff"

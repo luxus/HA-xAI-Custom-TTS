@@ -6,7 +6,6 @@ braytonstafford/grok_conversation. Auth stays ha_spacexai_auth Bearer headers.
 
 from __future__ import annotations
 
-import json
 import logging
 from typing import Any, Literal
 
@@ -25,6 +24,7 @@ from .api_helpers import (
     plan_turn,
     strip_json_from_response,
 )
+from .content_param import convert_content_to_param as _convert_content_to_param
 from .const import (
     CONF_HOME_CONTEXT,
     CONF_LLM_HASS_API,
@@ -55,7 +55,7 @@ from .const import (
     VOICE_OPTIMIZED_SUFFIX,
 )
 from .grok import GrokChatError, async_responses_completion
-from .tool_loop import run_tool_loop_with_fallback, tool_result_payload
+from .tool_loop import run_tool_loop_with_fallback
 from .tool_schema import format_llm_tool
 from .usage import UsageTracker
 
@@ -73,79 +73,6 @@ async def async_setup_entry(
     """Set up the Grok conversation entity."""
     runtime = hass.data[DOMAIN][entry.entry_id]
     async_add_entities([GrokConversationEntity(hass, entry, runtime)])
-
-
-def _convert_content_to_param(content: Any) -> list[dict[str, Any]]:
-    """Convert a ChatLog item to OpenAI-style messages."""
-    messages: list[dict[str, Any]] = []
-    role = getattr(content, "role", None)
-    tool_result = getattr(content, "tool_result", None)
-    tool_call_id = getattr(content, "tool_call_id", None)
-    if tool_call_id and tool_result is not None and role in {None, "tool"}:
-        messages.append(
-            {
-                "role": "tool",
-                "content": tool_result_payload(tool_result),
-                "tool_call_id": tool_call_id,
-            }
-        )
-        return messages
-
-    tool_calls = getattr(content, "tool_calls", None)
-    if tool_calls:
-        tool_calls_list = []
-        for tool_call in tool_calls:
-            if hasattr(tool_call, "function"):
-                tool_calls_list.append(
-                    {
-                        "id": getattr(tool_call, "id", ""),
-                        "type": "function",
-                        "function": {
-                            "name": tool_call.function.name,
-                            "arguments": tool_call.function.arguments,
-                        },
-                    }
-                )
-            elif hasattr(tool_call, "tool_name"):
-                args = getattr(tool_call, "tool_args", {})
-                tool_calls_list.append(
-                    {
-                        "id": getattr(tool_call, "id", str(hash(tool_call))),
-                        "type": "function",
-                        "function": {
-                            "name": tool_call.tool_name,
-                            "arguments": json.dumps(args) if not isinstance(args, str) else args,
-                        },
-                    }
-                )
-            elif isinstance(tool_call, dict):
-                args = tool_call.get("tool_args", tool_call.get("arguments", {}))
-                tool_calls_list.append(
-                    {
-                        "id": tool_call.get("id", ""),
-                        "type": "function",
-                        "function": {
-                            "name": tool_call.get("tool_name", tool_call.get("name", "")),
-                            "arguments": args if isinstance(args, str) else json.dumps(args),
-                        },
-                    }
-                )
-        messages.append(
-            {
-                "role": "assistant",
-                "content": getattr(content, "content", None) or "",
-                "tool_calls": tool_calls_list,
-            }
-        )
-        return messages
-
-    text = getattr(content, "content", None)
-    if text:
-        role_name = role or "user"
-        if role_name == "developer":
-            role_name = "system"
-        messages.append({"role": role_name, "content": text})
-    return messages
 
 
 def pick_speech_content(chat_log: Any, fallback: str | None = None) -> str | None:
